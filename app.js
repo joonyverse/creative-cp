@@ -1,13 +1,13 @@
 // ===================== SUPABASE CONFIG =====================
 // Replace these with your actual Supabase project details from the dashboard
 const SUPABASE_URL = 'https://your-project-url.supabase.co';
-const SUPABASE_ANON_KEY = 'your-anon-key';
+const SUPABASE_PUBLISHABLE_KEY = 'your-publishable-key';
 
 // Initialize Supabase client
 // Note: 'supabase' global is provided by the CDN script in index.html
 let supabaseClient = null;
 if (typeof supabase !== 'undefined') {
-  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 }
 
 // ===================== SHARED STORAGE HELPERS (SUPABASE) =====================
