@@ -1115,15 +1115,24 @@ async function init() {
   }
 
   // load shared data
-  const remote = await loadFromShared();
-  if (remote) {
-    data = remote;
-  } else {
-    data = getDefaultData();
-    // Only save default data if we managed to connect to Supabase
-    if (supabaseClient) {
-        await saveToShared(data);
+  try {
+    const remote = await loadFromShared();
+    if (remote && typeof remote === 'object') {
+      data = remote;
+      // ensure sub-arrays exist
+      if (!data.logs) data.logs = [];
+      if (!data.members) data.members = [];
+      if (!data.projects) data.projects = [];
+    } else {
+      console.log('No valid remote data, using defaults');
+      data = getDefaultData();
+      if (supabaseClient) {
+          await saveToShared(data);
+      }
     }
+  } catch (err) {
+    console.error('Init load error:', err);
+    data = getDefaultData();
   }
 
   lastSyncTime = new Date();
