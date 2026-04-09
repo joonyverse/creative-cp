@@ -1,6 +1,6 @@
 // ===================== SUPABASE CONFIG =====================
 // Replace these with your actual Supabase project details from the dashboard
-const SUPABASE_URL = 'https://supabase.com/dashboard/project/uljskdjiuraomcovzwge';
+const SUPABASE_URL = 'https://uljskdjiuraomcovzwge.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_ZOVbFy-73g31WVRWoXQj_w_XRwjNLpC';
 
 // Initialize Supabase client
