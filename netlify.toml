@@ -6,9 +6,6 @@
   to = "https://uljskdjiuraomcovzwge.supabase.co/:splat"
   status = 200
   force = true
-  [redirects.headers]
-    apikey = "sb_publishable_ZOVbFy-73g31WVRWoXQj_w_XRwjNLpC"
-    Authorization = "Bearer sb_publishable_ZOVbFy-73g31WVRWoXQj_w_XRwjNLpC"
 
 [[headers]]
   for = "/*"
