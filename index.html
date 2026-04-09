@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Creative CP | 리소스 관리 플랫폼 (팀 공유)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">팀 데이터 불러오는 중...</div>
+</div>
+
+<!-- SYNC STATUS BAR -->
+<div class="sync-bar">
+  <div class="sync-status">
+    <div class="sync-dot" id="syncDot"></div>
+    <span id="syncLabel">팀 공유 저장소 연결됨</span>
+  </div>
+  <div class="sync-info" id="lastSyncInfo">마지막 동기화: 방금 전</div>
+</div>
+
+<div class="header">
+  <h1>🗂️ Creative CP | 리소스 관리 플랫폼</h1>
+  <div class="header-right">
+    <span class="team-badge">👥 팀 공유 모드</span>
+    <span class="today-badge" id="todayBadge"></span>
+    <button class="refresh-btn" onclick="manualRefresh()" id="refreshBtn">
+      <span class="refresh-icon" id="refreshIcon">🔄</span> 새로고침
+    </button>
+    <button class="btn btn-white" onclick="openLogModal()">+ 오늘 업무 등록</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showPage('dashboard')">📊 대시보드</div>
+  <div class="tab" onclick="showPage('logs')">📝 일일 업무 로그</div>
+  <div class="tab" onclick="showPage('matrix')">🗃️ 리소스 매트릭스</div>
+  <div class="tab" onclick="showPage('projects')">🚀 프로젝트 관리</div>
+  <div class="tab" onclick="showPage('members')">👥 팀원 관리</div>
+</div>
+
+<div class="content">
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="grid-4 mb16" id="statCards"></div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title"><span class="icon">⚡</span> 여유 리소스 TOP 5 (오늘)</div>
+        <div id="availList" class="avail-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">🔥</span> 과부하 위험 팀원</div>
+        <div id="overloadList" class="avail-list"></div>
+      </div>
+    </div>
+    <div class="card mt20">
+      <div class="card-title">
+        <span class="icon">📋</span> 오늘의 업무 현황
+        <span id="dashLastMod" class="last-mod" style="margin-left:auto;"></span>
+      </div>
+      <div class="table-wrap">
+        <table id="todayTable">
+          <thead><tr><th>팀원</th><th>역할</th><th>프로젝트</th><th>업무내용</th><th>투입률</th><th>등록시간</th><th>등록자</th></tr></thead>
+          <tbody id="todayTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGS -->
+  <div class="page" id="page-logs">
+    <div class="card mb16">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <div class="form-group" style="min-width:150px;">
+          <label>날짜 선택</label>
+          <input type="date" id="logDateFilter" onchange="renderLogs()">
+        </div>
+        <div class="form-group" style="min-width:150px;">
+          <label>팀원 필터</label>
+          <select id="logMemberFilter" onchange="renderLogs()"><option value="">전체</option></select>
+        </div>
+        <div class="form-group" style="min-width:150px;">
+          <label>프로젝트 필터</label>
+          <select id="logProjectFilter" onchange="renderLogs()"><option value="">전체</option></select>
+        </div>
+        <div style="margin-top:18px;">
+          <button class="btn btn-primary" onclick="openLogModal()">+ 업무 등록</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>날짜</th><th>팀원</th><th>역할</th><th>프로젝트</th><th>업무내용</th><th>투입률</th><th>메모</th><th>등록자</th><th>액션</th></tr></thead>
+          <tbody id="logsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MATRIX -->
+  <div class="page" id="page-matrix">
+    <div class="card mb16" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <div class="form-group" style="min-width:150px;">
+        <label>기간 선택</label>
+        <select id="matrixPeriod" onchange="renderMatrix()">
+          <option value="today">오늘</option>
+          <option value="week">이번 주</option>
+          <option value="month">이번 달</option>
+        </select>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🗃️</span> 팀원 × 프로젝트 투입률 매트릭스 (%)</div>
+      <div class="matrix-wrap" id="matrixWrap"></div>
+    </div>
+    <div class="card mt20">
+      <div class="card-title"><span class="icon">📊</span> 팀원별 총 투입률</div>
+      <div id="memberLoadBars"></div>
+    </div>
+  </div>
+
+  <!-- PROJECTS -->
+  <div class="page" id="page-projects">
+
+    <!-- 통계 카드 -->
+    <div class="grid-4 mb16" id="projStatCards"></div>
+
+    <!-- 검색/필터 바 -->
+    <div class="card mb16">
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+        <div class="form-group" style="flex:2;min-width:180px;">
+          <label>🔍 프로젝트 검색</label>
+          <input type="text" id="projSearch" placeholder="프로젝트명으로 검색..." oninput="renderProjects()">
+        </div>
+        <div class="form-group" style="min-width:130px;">
+          <label>상태 필터</label>
+          <select id="projStatusFilter" onchange="renderProjects()">
+            <option value="">전체</option>
+            <option>진행중</option><option>대기</option><option>완료</option><option>일시중단</option>
+          </select>
+        </div>
+        <div class="form-group" style="min-width:130px;">
+          <label>우선순위 필터</label>
+          <select id="projPriorityFilter" onchange="renderProjects()">
+            <option value="">전체</option>
+            <option>높음</option><option>보통</option><option>낮음</option>
+          </select>
+        </div>
+        <div class="form-group" style="min-width:130px;">
+          <label>정렬</label>
+          <select id="projSort" onchange="renderProjects()">
+            <option value="name">이름순</option>
+            <option value="priority">우선순위순</option>
+            <option value="status">상태순</option>
+            <option value="recent">최근 수정순</option>
+          </select>
+        </div>
+        <div style="padding-bottom:2px;">
+          <button class="btn btn-primary" onclick="openProjectModal()">+ 프로젝트 추가</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 프로젝트 카드 그리드 -->
+    <div id="projCardGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-bottom:20px;"></div>
+
+    <!-- 프로젝트 테이블 (상세 목록) -->
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between;">
+        <span><span class="icon">📋</span> 전체 프로젝트 목록 (총 <span id="projectCount">0</span>개)</span>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-sm" id="viewToggleBtn" onclick="toggleView()" style="background:#f0f4ff;color:var(--primary);border:1px solid #c7d2fe;">📊 카드뷰</button>
+        </div>
+      </div>
+      <div class="table-wrap" id="projTableWrap">
+        <table>
+          <thead><tr><th style="width:36px"></th><th style="width:28px">#</th><th>프로젝트명</th><th>상태</th><th>우선순위</th><th>PD</th><th>PL</th><th>팀원</th><th>참여인원</th><th>마지막 수정</th><th>액션</th></tr></thead>
+          <tbody id="projectTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MEMBERS -->
+  <div class="page" id="page-members">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="section-title" style="margin:0">팀원 목록 (총 <span id="memberCount">0</span>명)</div>
+      <button class="btn btn-primary" onclick="openMemberModal()">+ 팀원 추가</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:36px"></th><th style="width:32px">#</th><th>이름</th><th>직책</th><th>전문분야</th><th>참여 프로젝트</th><th>현재 투입률</th><th>여유</th><th>액션</th></tr></thead>
+          <tbody id="memberTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODALS -->
+<!-- Log Modal -->
+<div class="modal-overlay" id="logModal">
+  <div class="modal">
+    <div class="modal-title">📝 오늘 업무 등록</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>날짜</label>
+        <input type="date" id="logDate">
+      </div>
+      <div class="form-group">
+        <label>팀원 선택</label>
+        <select id="logMember"><option value="">선택...</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>프로젝트</label>
+        <select id="logProject" onchange="autoFillRole()"><option value="">선택...</option></select>
+      </div>
+      <div class="form-group">
+        <label>역할</label>
+        <select id="logRole">
+          <option value="PD">PD (프로젝트 디렉터)</option>
+          <option value="PL">PL (프로젝트 리더)</option>
+          <option value="팀원">팀원</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:2;">
+        <label>업무 내용</label>
+        <input type="text" id="logTask" placeholder="예: 기획서 작성, 개발, 미팅 참석...">
+      </div>
+      <div class="form-group">
+        <label>투입률 (%)</label>
+        <input type="number" id="logPct" min="0" max="100" value="50" placeholder="50">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>메모 (선택)</label>
+        <textarea id="logNote" placeholder="특이사항이나 추가 내용..."></textarea>
+      </div>
+    </div>
+    <div style="background:#f0f4ff;border-radius:8px;padding:10px 14px;font-size:12px;color:var(--primary);margin-bottom:4px;">
+      💡 등록자로 <strong id="currentUserDisplay">-</strong> 가 기록됩니다
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('logModal')">취소</button>
+      <button class="btn btn-primary" onclick="saveLog()">등록</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project Modal (Create / Edit) -->
+<div class="modal-overlay" id="projectModal">
+  <div class="modal" style="width:600px;">
+    <div class="modal-title" id="projectModalTitle">🚀 프로젝트 추가</div>
+    <input type="hidden" id="editProjectId">
+
+    <!-- 색상 선택 -->
+    <div class="form-group mb16">
+      <label>프로젝트 색상</label>
+      <div id="projColorPicker" style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 0;">
+        <div class="color-chip selected" data-color="#4361ee" style="background:#4361ee;" onclick="selectColor(this)"></div>
+        <div class="color-chip" data-color="#7209b7" style="background:#7209b7;" onclick="selectColor(this)"></div>
+        <div class="color-chip" data-color="#06d6a0" style="background:#06d6a0;" onclick="selectColor(this)"></div>
+        <div class="color-chip" data-color="#ef476f" style="background:#ef476f;" onclick="selectColor(this)"></div>
+        <div class="color-chip" data-color="#ffd166" style="background:#ffd166;" onclick="selectColor(this)"></div>
+        <div class="color-chip" data-color="#f97316" style="background:#f97316;" onclick="selectColor(this)"></div>
+        <div class="color-chip" data-color="#0ea5e9" style="background:#0ea5e9;" onclick="selectColor(this)"></div>
+        <div class="color-chip" data-color="#10b981" style="background:#10b981;" onclick="selectColor(this)"></div>
+      </div>
+      <input type="hidden" id="projColor" value="#4361ee">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group" style="flex:2;">
+        <label>프로젝트명 *</label>
+        <input type="text" id="projName" placeholder="프로젝트 이름을 입력하세요">
+      </div>
+      <div class="form-group">
+        <label>상태</label>
+        <select id="projStatus">
+          <option>진행중</option><option>대기</option><option>완료</option><option>일시중단</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group mb16">
+      <label>프로젝트 설명</label>
+      <textarea id="projDesc" placeholder="프로젝트 목적, 목표, 주요 내용 등을 자유롭게 작성하세요..." style="min-height:72px;"></textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>시작일</label>
+        <input type="date" id="projStartDate">
+      </div>
+      <div class="form-group">
+        <label>마감일</label>
+        <input type="date" id="projDeadline">
+      </div>
+      <div class="form-group">
+        <label>우선순위</label>
+        <select id="projPriority"><option>높음</option><option>보통</option><option>낮음</option></select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>PD (프로젝트 디렉터)</label>
+        <select id="projPD"><option value="">선택...</option></select>
+      </div>
+      <div class="form-group">
+        <label>PL (프로젝트 리더)</label>
+        <select id="projPL"><option value="">선택...</option></select>
+      </div>
+    </div>
+
+    <div class="form-group mb16">
+      <label>참여 팀원 (다중 선택)</label>
+      <div id="projMembersCheck" style="display:flex;flex-wrap:wrap;gap:8px;padding:10px;border:1.5px solid var(--border);border-radius:8px;max-height:120px;overflow-y:auto;"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('projectModal')">취소</button>
+      <button class="btn btn-primary" onclick="saveProject()" id="projSaveBtn">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project Detail Modal (Read) -->
+<div class="modal-overlay" id="projectDetailModal">
+  <div class="modal" style="width:600px;">
+    <div id="projDetailHeader" style="border-radius:10px;padding:20px;margin-bottom:20px;color:white;">
+      <div style="font-size:11px;opacity:0.8;margin-bottom:4px;" id="projDetailStatus"></div>
+      <div style="font-size:22px;font-weight:800;margin-bottom:6px;" id="projDetailName"></div>
+      <div style="font-size:13px;opacity:0.85;" id="projDetailDesc"></div>
+    </div>
+    <div class="grid-2" style="margin-bottom:16px;" id="projDetailMeta"></div>
+    <div class="mb16">
+      <div style="font-size:12px;font-weight:700;color:var(--text-light);margin-bottom:8px;">참여 팀원</div>
+      <div id="projDetailMembers" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:700;color:var(--text-light);margin-bottom:8px;">최근 업무 로그</div>
+      <div id="projDetailLogs" class="table-wrap">
+        <table><thead><tr><th>날짜</th><th>팀원</th><th>업무</th><th>투입률</th></tr></thead>
+        <tbody id="projDetailLogsBody"></tbody></table>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('projectDetailModal')">닫기</button>
+      <button class="btn btn-primary" id="projDetailEditBtn">✏️ 수정</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="projDeleteModal">
+  <div class="modal" style="max-width:380px;text-align:center;">
+    <div style="font-size:48px;margin-bottom:12px;">🗑️</div>
+    <div class="modal-title" style="text-align:center;">프로젝트 삭제</div>
+    <p style="font-size:14px;color:var(--text-light);margin-bottom:8px;line-height:1.6;">
+      <strong id="projDeleteName"></strong> 을(를) 삭제할까요?<br>
+      관련 업무 로그 <strong id="projDeleteLogCount" style="color:var(--danger);"></strong>건도 함께 삭제됩니다.
+    </p>
+    <p style="font-size:12px;color:var(--danger);margin-bottom:20px;">이 작업은 되돌릴 수 없습니다.</p>
+    <div style="display:flex;gap:10px;">
+      <button class="btn" style="flex:1;" onclick="closeModal('projDeleteModal')">취소</button>
+      <button class="btn btn-danger" style="flex:1;" id="projDeleteConfirmBtn">삭제</button>
+    </div>
+  </div>
+</div>
+
+<!-- Member Delete Confirm Modal -->
+<div class="modal-overlay" id="memberDeleteModal">
+  <div class="modal" style="max-width:400px;text-align:center;">
+    <div style="font-size:48px;margin-bottom:12px;">👤</div>
+    <div class="modal-title" style="text-align:center;">팀원 삭제</div>
+    <p style="font-size:14px;color:var(--text-light);margin-bottom:8px;line-height:1.7;">
+      <strong id="memberDeleteName"></strong> 님을 삭제할까요?<br>
+      참여 프로젝트 <strong id="memberDeleteProjCount" style="color:var(--warning);"></strong>개에서 제외되고,<br>
+      관련 업무 로그 <strong id="memberDeleteLogCount" style="color:var(--danger);"></strong>건도 함께 삭제됩니다.
+    </p>
+    <p style="font-size:12px;color:var(--danger);margin-bottom:20px;">이 작업은 되돌릴 수 없습니다.</p>
+    <div style="display:flex;gap:10px;">
+      <button class="btn" style="flex:1;" onclick="closeModal('memberDeleteModal')">취소</button>
+      <button class="btn btn-danger" style="flex:1;" onclick="confirmDeleteMember()">삭제</button>
+    </div>
+  </div>
+</div>
+
+<!-- Member Modal -->
+<div class="modal-overlay" id="memberModal">
+  <div class="modal">
+    <div class="modal-title">👤 팀원 추가/수정</div>
+    <input type="hidden" id="editMemberId">
+    <div class="form-row">
+      <div class="form-group">
+        <label>이름</label>
+        <input type="text" id="memName" placeholder="이름">
+      </div>
+      <div class="form-group">
+        <label>직책</label>
+        <select id="memTitle">
+          <option>전무</option><option>상무</option><option>이사</option><option>수석부장</option><option>수석</option><option>책임</option><option>선임</option><option>디자이너</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>전문분야</label>
+        <input type="text" id="memSpec" placeholder="예: 기획, 개발, 디자인, 마케팅...">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('memberModal')">취소</button>
+      <button class="btn btn-primary" onclick="saveMember()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- Nickname Modal (first visit) -->
+<div class="modal-overlay open" id="nicknameModal">
+  <div class="modal" style="max-width:380px;text-align:center;">
+    <div style="font-size:48px;margin-bottom:12px;">👋</div>
+    <div class="modal-title" style="text-align:center;">처음 오셨나요?</div>
+    <p style="font-size:14px;color:var(--text-light);margin-bottom:20px;line-height:1.6;">팀 공유 플랫폼입니다.<br>업무 등록 시 <strong>등록자 이름</strong>이 함께 기록됩니다.<br>사용할 이름을 입력해주세요.</p>
+    <div class="form-group" style="text-align:left;margin-bottom:16px;">
+      <label>내 이름 (닉네임)</label>
+      <input type="text" id="nicknameInput" placeholder="예: 김민준" maxlength="20" style="font-size:15px;padding:12px;">
+    </div>
+    <button class="btn btn-primary" style="width:100%;padding:12px;" onclick="saveNickname()">시작하기 →</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js" defer></script>
+</body>
+</html>
