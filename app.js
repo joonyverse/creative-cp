@@ -1095,8 +1095,18 @@ function viewProject(id) {
   const projDetailMetaEl = document.getElementById('projDetailMeta');
   if (projDetailMetaEl) {
     projDetailMetaEl.innerHTML = `
-      <div class="detail-meta-item"><div class="detail-meta-label">PD</div><div class="detail-meta-value">${pd ? pd.name : '-'}</div></div>
-      <div class="detail-meta-item"><div class="detail-meta-label">PL</div><div class="detail-meta-value">${pl ? pl.name : '-'}</div></div>
+      <div class="detail-meta-item">
+        <div class="detail-meta-label">PD</div>
+        <div class="detail-meta-value">
+          ${pd ? `<strong class="clickable-member" onclick="closeModal('projectDetailModal'); viewMember('${pd.id}')">${pd.name}</strong>` : '-'}
+        </div>
+      </div>
+      <div class="detail-meta-item">
+        <div class="detail-meta-label">PL</div>
+        <div class="detail-meta-value">
+          ${pl ? `<strong class="clickable-member" onclick="closeModal('projectDetailModal'); viewMember('${pl.id}')">${pl.name}</strong>` : '-'}
+        </div>
+      </div>
       <div class="detail-meta-item"><div class="detail-meta-label">시작일</div><div class="detail-meta-value">${p.startDate ? formatDate(p.startDate) : '-'}</div></div>
       <div class="detail-meta-item"><div class="detail-meta-label">마감일</div><div class="detail-meta-value">${p.deadline ? formatDate(p.deadline) + ' ' + (deadlineBadge(p.deadline)) : '-'}</div></div>
       <div class="detail-meta-item"><div class="detail-meta-label">업무 로그</div><div class="detail-meta-value">${logCount}건</div></div>
@@ -1110,9 +1120,9 @@ function viewProject(id) {
     projDetailMembersEl.innerHTML = allMembers.map(m => {
       const isP = m.id === p.pd;
       const isL = m.id === p.pl;
-      return `<div style="display:flex;align-items:center;gap:5px;background:#f0f4ff;border-radius:8px;padding:5px 10px;font-size:13px;">
+      return `<div style="display:flex;align-items:center;gap:5px;background:#f0f4ff;border-radius:8px;padding:5px 10px;font-size:13px;cursor:pointer;" onclick="closeModal('projectDetailModal'); viewMember('${m.id}')" title="${m.name} 님의 상세 정보 보기">
         ${isP ? '<span class="role-pd">PD</span>' : isL ? '<span class="role-pl">PL</span>' : '<span class="role-mb">팀원</span>'}
-        <strong>${m.name}</strong> <span style="color:var(--text-light)">${m.spec}</span>
+        <strong class="clickable-member">${m.name}</strong> <span style="color:var(--text-light);font-size:11px;">${m.spec}</span>
       </div>`;
     }).join('') || '<span style="color:var(--text-light);font-size:13px">배정된 팀원 없음</span>';
   }
@@ -1123,7 +1133,14 @@ function viewProject(id) {
   if (projDetailLogsBodyEl) {
     projDetailLogsBodyEl.innerHTML = recentLogs.map(l => {
       const m = getMember(l.memberId);
-      return `<tr><td>${formatDate(l.date)}</td><td>${m?.name||'-'}</td><td>${l.task}</td><td>${pctBadge(l.pct)}</td></tr>`;
+      return `<tr>
+        <td>${formatDate(l.date)}</td>
+        <td>
+          ${m ? `<strong class="clickable-member" onclick="closeModal('projectDetailModal'); viewMember('${m.id}')">${m.name}</strong>` : '-'}
+        </td>
+        <td>${l.task}</td>
+        <td>${pctBadge(l.pct)}</td>
+      </tr>`;
     }).join('') || '<tr><td colspan="4" class="empty-state" style="padding:14px">업무 로그 없음</td></tr>';
   }
 
