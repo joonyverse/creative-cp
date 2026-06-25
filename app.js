@@ -845,6 +845,11 @@ function resetLogsFilters() {
 
 
 function downloadLogsCSV() {
+  if (logViewMode === 'calendar') {
+    exportCalendarToExcel();
+    return;
+  }
+
   const logs = getFilteredLogs().sort((a,b) => (b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
 
   // CSV generation with UTF-8 BOM to prevent Excel encoding issues
@@ -877,6 +882,180 @@ function downloadLogsCSV() {
   link.click();
   document.body.removeChild(link);
   showToast('📥 CSV 다운로드가 완료되었습니다');
+}
+
+function exportCalendarToExcel() {
+  if (typeof XLSX === 'undefined') {
+    showToast('❌ 엑셀 라이브러리가 로드되지 않았습니다. 인터넷 연결을 확인해주세요.');
+    return;
+  }
+
+  const year = calendarYear;
+  const month = calendarMonth;
+  const monthStr = String(month).padStart(2, '0');
+  const targetYearMonth = `${year}-${monthStr}`;
+  
+  const lastDay = new Date(year, month, 0).getDate();
+  
+  const wb = XLSX.utils.book_new();
+  
+  // 스타일 정의
+  const headerStyle = {
+    fill: { fgColor: { rgb: '4F46E5' } }, // Indigo 600
+    font: { name: '맑은 고딕', sz: 10, bold: true, color: { rgb: 'FFFFFF' } },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: 'C7D2FE' } },
+      bottom: { style: 'thin', color: { rgb: 'C7D2FE' } },
+      left: { style: 'thin', color: { rgb: 'C7D2FE' } },
+      right: { style: 'thin', color: { rgb: 'C7D2FE' } }
+    }
+  };
+
+  const cellCenterStyle = {
+    font: { name: '맑은 고딕', sz: 9, color: { rgb: '374151' } },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      bottom: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      left: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      right: { style: 'thin', color: { rgb: 'E5E7EB' } }
+    }
+  };
+
+  const cellLeftStyle = {
+    font: { name: '맑은 고딕', sz: 9, color: { rgb: '374151' } },
+    alignment: { horizontal: 'left', vertical: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      bottom: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      left: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      right: { style: 'thin', color: { rgb: 'E5E7EB' } }
+    }
+  };
+
+  // Zebra Striping용 스타일 (아주 연한 남색 톤)
+  const zebraBgColor = 'F5F7FF';
+  const cellCenterZebraStyle = {
+    fill: { fgColor: { rgb: zebraBgColor } },
+    font: { name: '맑은 고딕', sz: 9, color: { rgb: '374151' } },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      bottom: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      left: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      right: { style: 'thin', color: { rgb: 'E5E7EB' } }
+    }
+  };
+
+  const cellLeftZebraStyle = {
+    fill: { fgColor: { rgb: zebraBgColor } },
+    font: { name: '맑은 고딕', sz: 9, color: { rgb: '374151' } },
+    alignment: { horizontal: 'left', vertical: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      bottom: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      left: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      right: { style: 'thin', color: { rgb: 'E5E7EB' } }
+    }
+  };
+
+  const cellEmptyStyle = {
+    font: { name: '맑은 고딕', sz: 9, italic: true, color: { rgb: '9CA3AF' } },
+    alignment: { horizontal: 'left', vertical: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      bottom: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      left: { style: 'thin', color: { rgb: 'E5E7EB' } },
+      right: { style: 'thin', color: { rgb: 'E5E7EB' } }
+    }
+  };
+
+  // --- 개별 일별 상세 시트 작성 ---
+  for (let day = 1; day <= lastDay; day++) {
+    const dayStr = String(day).padStart(2, '0');
+    const fullDate = `${targetYearMonth}-${dayStr}`;
+    
+    const dayLogs = data.logs.filter(l => l.date === fullDate);
+    
+    const sheetData = [
+      ['팀원', '역할', '프로젝트', '업무내용', '투입률(%)', '메모', '등록자']
+    ];
+    
+    const isEmpty = dayLogs.length === 0;
+    if (isEmpty) {
+      sheetData.push(['-', '-', '-', '등록된 업무 로그가 없습니다.', 0, '-', '-']);
+    } else {
+      dayLogs.forEach(l => {
+        const m = getMember(l.memberId);
+        const p = getProject(l.projectId);
+        sheetData.push([
+          m?.name || '-',
+          l.role || '팀원',
+          p?.name || '-',
+          l.task || '',
+          l.pct || 0,
+          l.note || '',
+          l.registeredBy || '-'
+        ]);
+      });
+    }
+    
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cell_address = { c: C, r: R };
+        const cell_ref = XLSX.utils.encode_cell(cell_address);
+        if (!ws[cell_ref]) continue;
+        
+        if (R === 0) {
+          ws[cell_ref].s = headerStyle;
+        } else if (isEmpty && R === 1) {
+          if (C === 3) {
+            ws[cell_ref].s = cellEmptyStyle;
+          } else {
+            ws[cell_ref].s = cellCenterStyle;
+          }
+        } else {
+          const isZebra = (R % 2 === 0);
+          if ([0, 1, 4, 6].includes(C)) {
+            ws[cell_ref].s = isZebra ? cellCenterZebraStyle : cellCenterStyle;
+          } else {
+            ws[cell_ref].s = isZebra ? cellLeftZebraStyle : cellLeftStyle;
+          }
+        }
+      }
+    }
+    
+    ws['!autofilter'] = {
+      ref: XLSX.utils.encode_range({
+        s: { c: 0, r: 0 },
+        e: { c: range.e.c, r: range.e.r }
+      })
+    };
+
+    ws['!cols'] = [
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 20 },
+      { wch: 45 },
+      { wch: 12 },
+      { wch: 25 },
+      { wch: 12 }
+    ];
+    
+    ws['!rows'] = [{ hpt: 26 }];
+    for (let R = 1; R <= range.e.r; ++R) {
+      ws['!rows'].push({ hpt: 20 });
+    }
+    
+    XLSX.utils.book_append_sheet(wb, ws, `${dayStr}일`);
+  }
+  
+  XLSX.writeFile(wb, `업무로그_${year}년_${monthStr}월.xlsx`);
+  showToast(`📥 ${year}년 ${monthStr}월 일별 엑셀 파일이 다운로드되었습니다`);
 }
 
 async function deleteLog(id) {

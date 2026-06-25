@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Creative CP | 리소스 관리 플랫폼 (팀 공유)</title>
   <link rel="stylesheet" href="style.css?v=4.0">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>
 </head>
 <body>
 
@@ -151,7 +152,7 @@
             <span class="reset-icon" aria-hidden="true">↺</span> 초기화
           </button>
           <button class="btn btn-primary btn-add-log" type="button" onclick="openLogModal()">+ 업무 등록</button>
-          <button class="btn btn-download-csv" type="button" onclick="downloadLogsCSV()">📥 CSV</button>
+          <button class="btn btn-download-csv" type="button" onclick="downloadLogsCSV()">📥 내보내기</button>
         </div>
       </div>
 
@@ -254,7 +255,7 @@
       </div>
       <div>
         <button class="btn btn-primary" onclick="exportMatrixToCSV()" style="display:flex;align-items:center;gap:6px;">
-          📥 CSV 내보내기
+          📥 내보내기
         </button>
       </div>
     </div>
