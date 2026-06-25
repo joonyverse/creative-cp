@@ -70,7 +70,7 @@ let autoRefreshTimer = null;
 let lastSyncTime = null;
 let dashboardDate = null;
 
-let logViewMode = 'table';
+let logViewMode = 'calendar';
 let calendarYear = new Date().getFullYear();
 let calendarMonth = new Date().getMonth() + 1;
 let selectedCalendarDate = today();
@@ -1036,7 +1036,7 @@ function updateAgendaPanel() {
         <div style="background: #f8fafc; border-left: 4px solid ${projColor}; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); transition: all 0.15s ease; border: 1px solid var(--border);" class="agenda-item">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <strong style="font-size: 13px; color: var(--text); cursor: pointer;" onclick="viewMember('${m?.id}')" class="clickable-member">${m?.name || '?'}</strong>
+              <strong style="font-size: 13px; cursor: pointer;" onclick="viewMember('${m?.id}')" class="clickable-member">${m?.name || '?'}</strong>
               <span style="font-size: 9px; font-weight: 800; background: #e2e8f0; color: #475569; padding: 1px 5px; border-radius: 4px; white-space: nowrap;">${l.role}</span>
             </div>
             <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
