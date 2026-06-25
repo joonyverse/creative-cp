@@ -2188,6 +2188,28 @@ function showMemberAnalytics(memberId) {
   }
 }
 
+function moveMember(dir) {
+  const memberSelect = document.getElementById('analyticsMember');
+  if (!memberSelect || !data.members || data.members.length === 0) return;
+  
+  const currentId = memberSelect.value;
+  let idx = data.members.findIndex(m => m.id === currentId);
+  if (idx === -1) idx = 0;
+  
+  let newIdx = idx + dir;
+  if (newIdx < 0) {
+    newIdx = data.members.length - 1;
+  } else if (newIdx >= data.members.length) {
+    newIdx = 0;
+  }
+  
+  const newMember = data.members[newIdx];
+  if (newMember) {
+    memberSelect.value = newMember.id;
+    renderAnalytics();
+  }
+}
+
 // ===================== INIT =====================
 async function init() {
   dashboardDate = today();
