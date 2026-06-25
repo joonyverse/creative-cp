@@ -2592,7 +2592,6 @@ function renderAnalytics() {
 
     let currentPct = 0;
     const gradientParts = [];
-    const gap = 0.6; // 조각 간 흰색 경계선 너비 (%)
     const antialias = 0.15; // 톱니 현상 방지 보간 구간 (%)
     const hasMultiple = projectShares.length > 1;
 
@@ -2607,11 +2606,9 @@ function renderAnalytics() {
 
       if (hasMultiple && sIdx > 0) {
         const prevColor = (hoveredPid !== null && projectShares[sIdx - 1].pid !== hoveredPid) ? '#e2e8f0' : projectShares[sIdx - 1].color;
-        // 이전 조각 끝에서 흰색으로 넘어갈 때 미세하게 전이시켜 경계를 부드럽게 처리
+        // 인접한 조각 경계에서 두 색상이 안티앨리어싱 보간으로 매끄럽게 교차하도록 처리
         gradientParts.push(`${prevColor} ${currentPct - antialias}%`);
-        gradientParts.push(`#ffffff ${currentPct}%`);
-        gradientParts.push(`#ffffff ${currentPct + gap}%`);
-        gradientParts.push(`${drawColor} ${currentPct + gap + antialias}%`);
+        gradientParts.push(`${drawColor} ${currentPct + antialias}%`);
       } else {
         if (sIdx === 0) {
           gradientParts.push(`${drawColor} 0%`);
