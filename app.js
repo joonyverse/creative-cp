@@ -1913,6 +1913,25 @@ function renderAnalytics() {
   const member = getMember(memberId);
   if (!member) return;
   
+  // 0. Render Member Profile Banner
+  const profileEl = document.getElementById('analyticsMemberProfile');
+  if (profileEl) {
+    const memberIdx = data.members.findIndex(m => m.id === memberId);
+    const hue = (memberIdx * 60 + 200) % 360;
+    profileEl.innerHTML = `
+      <div style="width: 54px; height: 54px; border-radius: 50%; background: hsl(${hue},60%,50%); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; border: 2.5px solid rgba(255,255,255,0.45); box-shadow: 0 4px 8px rgba(0,0,0,0.12); flex-shrink:0;">
+        ${member.name[0]}
+      </div>
+      <div style="display:flex; flex-direction:column; gap:3px;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <strong style="font-size:22px; font-weight:800; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">${member.name}</strong>
+          <span style="background:rgba(255,255,255,0.22); color:white; padding:1px 8px; border-radius:12px; font-size:10px; font-weight:700; border: 1px solid rgba(255,255,255,0.25); white-space:nowrap;">${member.title}</span>
+        </div>
+        <div style="font-size:12px; opacity:0.9; line-height:1.4;">전문분야: <strong>${member.spec}</strong> &nbsp;|&nbsp; 조회 기간: <strong>${formatDate(startStr)} ~ ${formatDate(endStr)}</strong></div>
+      </div>
+    `;
+  }
+  
   // 1. Filter logs
   const memberLogs = data.logs.filter(l => l.memberId === memberId && l.date >= startStr && l.date <= endStr);
   
