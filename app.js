@@ -1178,19 +1178,103 @@ function openLogModalWithDate(dateStr) {
 }
 
 // ===================== MATRIX =====================
+let matrixLoadFilter = 'all';
+
+function setMatrixLoadFilter(filterType) {
+  matrixLoadFilter = filterType;
+  document.querySelectorAll('.filter-chips .chip').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  if (filterType === 'all') {
+    const el = document.getElementById('btnFilterAll');
+    if (el) el.classList.add('active');
+  } else if (filterType === 'overload') {
+    const el = document.getElementById('btnFilterOverload');
+    if (el) el.classList.add('active');
+  } else if (filterType === 'underload') {
+    const el = document.getElementById('btnFilterUnderload');
+    if (el) el.classList.add('active');
+  }
+  renderMatrix();
+}
+
+function exportMatrixToCSV() {
+  const table = document.querySelector('.matrix-table');
+  if (!table) {
+    showToast('매트릭스 테이블이 존재하지 않습니다.');
+    return;
+  }
+  let csv = [];
+  const rows = table.querySelectorAll('tr');
+  rows.forEach(row => {
+    const cols = row.querySelectorAll('th, td');
+    const rowData = [];
+    cols.forEach(col => {
+      let text = col.innerText.replace(/[\n\r]+/g, ' '); // 줄바꿈 제거
+      text = text.replace(/"/g, '""');
+      rowData.push(`"${text}"`);
+    });
+    csv.push(rowData.join(','));
+  });
+  
+  const csvContent = '\uFEFF' + csv.join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  
+  const period = document.getElementById('matrixPeriod').value;
+  const dateStr = today();
+  link.setAttribute('download', `resource_matrix_${period}_${dateStr}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast('CSV 다운로드가 완료되었습니다.');
+}
+
 function renderMatrix() {
   const period = document.getElementById('matrixPeriod').value;
+  const specSelect = document.getElementById('matrixSpecFilter');
+  
+  // 직군 필터 옵션 동적 초기화
+  if (specSelect && specSelect.options.length <= 1) {
+    const specs = [...new Set(data.members.map(m => m.spec).filter(Boolean))].sort();
+    specs.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = s;
+      specSelect.appendChild(opt);
+    });
+  }
+
   const td = today();
-  let startDate, endDate = td;
-  if (period === 'today') { startDate = td; }
-  else if (period === 'week') {
-    const d = new Date(); const day = d.getDay(); const diff = d.getDate() - day + (day===0?-6:1);
-    startDate = new Date(d.setDate(diff)).toISOString().split('T')[0];
+  let startDate, endDate;
+  
+  if (period === 'today') {
+    startDate = td;
+    endDate = td;
+  } else if (period === 'week') {
+    const d = new Date();
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(d.setDate(diff));
+    startDate = monday.toISOString().split('T')[0];
+    
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    endDate = sunday.toISOString().split('T')[0];
   } else {
-    startDate = td.substring(0,7) + '-01';
+    // month
+    const d = new Date();
+    const firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    startDate = firstDay.toISOString().split('T')[0];
+    endDate = lastDay.toISOString().split('T')[0];
   }
 
   const filtered = data.logs.filter(l => l.date >= startDate && l.date <= endDate);
+  
   const sumMap = {};
   const cntMap = {};
   data.members.forEach(m => { sumMap[m.id] = {}; cntMap[m.id] = {}; });
@@ -1200,20 +1284,48 @@ function renderMatrix() {
     cntMap[l.memberId][l.projectId] = (cntMap[l.memberId][l.projectId]||0) + 1;
   });
 
-  const activeProjects = data.projects.filter(p => p.status === '진행중');
+  // activeProjects: 진행중이거나, 선택한 기간 내에 로그 이력이 존재하는 프로젝트들
+  const loggedProjectIds = new Set(filtered.map(l => l.projectId));
+  const activeProjects = data.projects.filter(p => p.status === '진행중' || loggedProjectIds.has(p.id));
 
-  let html = `<table class="matrix-table"><thead><tr><th class="name-col">팀원</th>`;
-  activeProjects.forEach(p => { html += `<th title="${p.name}">${p.name.length>8?p.name.substring(0,8)+'…':p.name}</th>`; });
-  html += `<th>총 투입률</th></tr></thead><tbody>`;
-
+  // 각 멤버의 총 투입률 사전 계산
+  const memberTotals = {};
   data.members.forEach(m => {
     let total = 0;
-    html += `<tr><td class="name-col"><span class="clickable-member" onclick="viewMember('${m.id}')" style="font-weight:700">${m.name}</span><br><small style="color:var(--text-light)">${m.spec}</small></td>`;
     activeProjects.forEach(p => {
       const sum = sumMap[m.id]?.[p.id] || 0;
       const cnt = cntMap[m.id]?.[p.id] || 0;
       const avg = cnt > 0 ? Math.round(sum/cnt) : 0;
       total += avg;
+    });
+    memberTotals[m.id] = total;
+  });
+
+  // 필터링 적용할 멤버 목록 구성
+  const selectedSpec = specSelect ? specSelect.value : 'all';
+  let membersToShow = data.members;
+  
+  if (selectedSpec !== 'all') {
+    membersToShow = membersToShow.filter(m => m.spec === selectedSpec);
+  }
+  
+  if (matrixLoadFilter === 'overload') {
+    membersToShow = membersToShow.filter(m => memberTotals[m.id] > 100);
+  } else if (matrixLoadFilter === 'underload') {
+    membersToShow = membersToShow.filter(m => memberTotals[m.id] < 50);
+  }
+
+  let html = `<table class="matrix-table"><thead><tr><th class="name-col">팀원</th>`;
+  activeProjects.forEach(p => { html += `<th title="${p.name}">${p.name.length>8?p.name.substring(0,8)+'…':p.name}</th>`; });
+  html += `<th>총 투입률</th></tr></thead><tbody>`;
+
+  membersToShow.forEach(m => {
+    const total = memberTotals[m.id];
+    html += `<tr><td class="name-col"><span class="clickable-member" onclick="viewMember('${m.id}')" style="font-weight:700">${m.name}</span><br><small style="color:var(--text-light)">${m.spec}</small></td>`;
+    activeProjects.forEach(p => {
+      const sum = sumMap[m.id]?.[p.id] || 0;
+      const cnt = cntMap[m.id]?.[p.id] || 0;
+      const avg = cnt > 0 ? Math.round(sum/cnt) : 0;
       const cls = pctClass(avg);
       html += `<td class="${cls}">${avg > 0 ? avg+'%' : '-'}</td>`;
     });
@@ -1222,18 +1334,18 @@ function renderMatrix() {
   });
 
   html += '</tbody></table>';
+  
+  // 검색 결과 없음 처리
+  if (membersToShow.length === 0) {
+    html = `<div class="empty-state"><div class="emoji">🔍</div>필터에 일치하는 팀원이 없습니다.</div>`;
+  }
+  
   const matrixWrapEl = document.getElementById('matrixWrap');
   if (matrixWrapEl) matrixWrapEl.innerHTML = html;
 
   let barsHtml = '<div class="avail-list">';
-  data.members.forEach(m => {
-    let total = 0;
-    if (sumMap[m.id]) {
-      Object.entries(sumMap[m.id]).forEach(([pid, sum]) => {
-        const cnt = cntMap[m.id][pid] || 1;
-        total += Math.round(sum/cnt);
-      });
-    }
+  membersToShow.forEach(m => {
+    const total = memberTotals[m.id];
     barsHtml += `<div class="avail-item">
       <div class="avail-name clickable-member" onclick="viewMember('${m.id}')">${m.name}</div>
       <div class="avail-bar-wrap"><div class="progress-bar"><div class="progress-fill ${progressClass(total)}" style="width:${Math.min(total,100)}%"></div></div></div>
@@ -1242,6 +1354,11 @@ function renderMatrix() {
     </div>`;
   });
   barsHtml += '</div>';
+  
+  if (membersToShow.length === 0) {
+    barsHtml = `<div class="empty-state">필터에 일치하는 팀원이 없습니다.</div>`;
+  }
+  
   const memberLoadBarsEl = document.getElementById('memberLoadBars');
   if (memberLoadBarsEl) memberLoadBarsEl.innerHTML = barsHtml;
 }

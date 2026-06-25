@@ -227,14 +227,35 @@
 
   <!-- MATRIX -->
   <div class="page" id="page-matrix">
-    <div class="card mb16" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-      <div class="form-group" style="min-width:150px;">
-        <label>기간 선택</label>
-        <select id="matrixPeriod" onchange="renderMatrix()">
-          <option value="today">오늘</option>
-          <option value="week">이번 주</option>
-          <option value="month">이번 달</option>
-        </select>
+    <div class="card mb16" style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;justify-content:space-between;">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;flex:1;">
+        <div class="form-group" style="min-width:150px;flex:none;">
+          <label>기간 선택</label>
+          <select id="matrixPeriod" onchange="renderMatrix()">
+            <option value="today">오늘</option>
+            <option value="week">이번 주</option>
+            <option value="month">이번 달</option>
+          </select>
+        </div>
+        <div class="form-group" style="min-width:150px;flex:none;">
+          <label>직군 필터</label>
+          <select id="matrixSpecFilter" onchange="renderMatrix()">
+            <option value="all">전체 직군</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:none;">
+          <label>투입 현황 필터</label>
+          <div class="filter-chips" style="display:flex;gap:6px;margin-top:2px;">
+            <button type="button" id="btnFilterAll" class="chip active" onclick="setMatrixLoadFilter('all')">전체</button>
+            <button type="button" id="btnFilterOverload" class="chip" onclick="setMatrixLoadFilter('overload')">🔴 과부하 (>100%)</button>
+            <button type="button" id="btnFilterUnderload" class="chip" onclick="setMatrixLoadFilter('underload')">🟢 여유 (<50%)</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <button class="btn btn-primary" onclick="exportMatrixToCSV()" style="display:flex;align-items:center;gap:6px;">
+          📥 CSV 내보내기
+        </button>
       </div>
     </div>
     <div class="card">

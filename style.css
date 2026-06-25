@@ -178,6 +178,28 @@ textarea { resize: vertical; min-height: 60px; }
 .cell-high { background: #ffedd5; color: #9a3412; font-weight: 700; }
 .cell-over { background: #fee2e2; color: #991b1b; font-weight: 700; }
 
+/* FILTER CHIPS */
+.chip {
+  padding: 8px 14px;
+  border-radius: 20px;
+  background: #f0f4ff;
+  border: 1px solid #c7d2fe;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+}
+.chip:hover {
+  background: #e0e7ff;
+}
+.chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
 /* MODAL */
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
 .modal-overlay.open { display: flex; }
