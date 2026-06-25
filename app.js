@@ -712,6 +712,30 @@ function onDateChange() {
   renderLogs();
 }
 
+function resetLogsFilters() {
+  const period = document.getElementById('logPeriodFilter');
+  if (period) period.value = 'today';
+  const date = document.getElementById('logDateFilter');
+  if (date) date.value = '';
+  const member = document.getElementById('logMemberFilter');
+  if (member) member.value = '';
+  const project = document.getElementById('logProjectFilter');
+  if (project) project.value = '';
+
+  // Update URL
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('member');
+    url.searchParams.delete('project');
+    url.searchParams.delete('date');
+    window.history.replaceState(null, '', url.pathname + url.search);
+  } catch(e) {}
+
+  renderLogs();
+  showToast('🧹 필터가 초기화되었습니다');
+}
+
+
 function downloadLogsCSV() {
   const periodVal = document.getElementById('logPeriodFilter').value;
   const dateVal = document.getElementById('logDateFilter').value;
