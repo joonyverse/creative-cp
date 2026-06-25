@@ -18,6 +18,7 @@ let currentUser = null;
 let data = null;
 let autoRefreshTimer = null;
 let lastSyncTime = null;
+let dashboardDate = null;
 
 async function loadFromShared() {
   if (!supabaseClient) {
@@ -339,7 +340,38 @@ function showPage(name) {
 // ===================== DASHBOARD =====================
 function renderDashboard() {
   const td = today();
-  const todayLogs = data.logs.filter(l => l.date === td);
+  const activeDate = dashboardDate || td;
+  const isToday = (activeDate === td);
+  const todayLogs = data.logs.filter(l => l.date === activeDate);
+
+  // Update date selector UI
+  const dObj = new Date(activeDate);
+  const dateLabel = dObj.toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'short'});
+  const titleEl = document.getElementById('dashboardDateTitle');
+  if (titleEl) titleEl.textContent = dateLabel;
+
+  const badgeEl = document.getElementById('dashboardDateBadge');
+  if (badgeEl) {
+    if (isToday) {
+      badgeEl.textContent = '오늘';
+      badgeEl.className = 'badge badge-blue';
+    } else {
+      badgeEl.textContent = '조회일 데이터';
+      badgeEl.className = 'badge badge-purple';
+    }
+  }
+
+  const pickerEl = document.getElementById('dashDatePicker');
+  if (pickerEl) pickerEl.value = activeDate;
+
+  const availListDateLabelEl = document.getElementById('availListDateLabel');
+  if (availListDateLabelEl) availListDateLabelEl.textContent = isToday ? '(오늘)' : `(${formatDate(activeDate)})`;
+
+  const overloadListDateLabelEl = document.getElementById('overloadListDateLabel');
+  if (overloadListDateLabelEl) overloadListDateLabelEl.textContent = isToday ? '(오늘)' : `(${formatDate(activeDate)})`;
+
+  const todayTableTitleLabelEl = document.getElementById('todayTableTitleLabel');
+  if (todayTableTitleLabelEl) todayTableTitleLabelEl.textContent = isToday ? '오늘의 업무 현황' : `${formatDate(activeDate)} 업무 현황`;
 
   const loadMap = {};
   data.members.forEach(m => loadMap[m.id] = 0);
@@ -354,7 +386,7 @@ function renderDashboard() {
   if (statCardsEl) {
     statCardsEl.innerHTML = `
       <div class="stat-card"><div class="stat-label">전체 팀원</div><div class="stat-value">${data.members.length}명</div><div class="stat-sub">활성 프로젝트 ${data.projects.filter(p=>p.status==='진행중').length}개</div></div>
-      <div class="stat-card green"><div class="stat-label">평균 투입률 (오늘)</div><div class="stat-value">${avgLoad}%</div><div class="stat-sub">오늘 등록 ${todayLogs.length}건</div></div>
+      <div class="stat-card green"><div class="stat-label">평균 투입률 ${isToday ? '(오늘)' : '(조회일)'}</div><div class="stat-value">${avgLoad}%</div><div class="stat-sub">${isToday ? '오늘' : '조회일'} 등록 ${todayLogs.length}건</div></div>
       <div class="stat-card orange"><div class="stat-label">여유 있는 팀원</div><div class="stat-value">${freeCount}명</div><div class="stat-sub">50% 미만 투입</div></div>
       <div class="stat-card red"><div class="stat-label">과부하 팀원</div><div class="stat-value">${overCount}명</div><div class="stat-sub">100% 초과 투입</div></div>
     `;
@@ -374,7 +406,7 @@ function renderDashboard() {
         <div class="avail-pct">${load}%</div>
         <div class="avail-free">여유 ${Math.max(0,100-load)}%</div>
       </div>
-    `).join('') : '<div class="empty-state"><div class="emoji">✅</div>오늘 업무 로그가 없습니다</div>';
+    `).join('') : `<div class="empty-state"><div class="emoji">✅</div>${isToday ? '오늘' : '해당 날짜'} 업무 로그가 없습니다</div>`;
   }
 
   const overloadListEl = document.getElementById('overloadList');
@@ -416,8 +448,29 @@ function renderDashboard() {
         <td style="color:var(--text-light);font-size:12px">${l.createdAt||''}</td>
         <td><span class="badge badge-purple">${l.registeredBy||'-'}</span></td>
       </tr>`;
-    }).join('') : '<tr><td colspan="7" class="empty-state">오늘 등록된 업무가 없습니다. 업무를 등록해주세요!</td></tr>';
+    }).join('') : `<tr><td colspan="7" class="empty-state">${isToday ? '오늘 등록된 업무가 없습니다. 업무를 등록해주세요!' : '해당 날짜에 등록된 업무가 없습니다.'}</td></tr>`;
   }
+}
+
+function moveDashboardDate(dir) {
+  const activeDate = dashboardDate || today();
+  const d = new Date(activeDate);
+  d.setDate(d.getDate() + dir);
+  dashboardDate = d.toISOString().split('T')[0];
+  renderDashboard();
+}
+
+function onDashboardDateChange() {
+  const val = document.getElementById('dashDatePicker').value;
+  if (val) {
+    dashboardDate = val;
+    renderDashboard();
+  }
+}
+
+function resetDashboardDate() {
+  dashboardDate = today();
+  renderDashboard();
 }
 
 function roleTag(r) {
@@ -1424,6 +1477,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 
 // ===================== INIT =====================
 async function init() {
+  dashboardDate = today();
   const todayBadgeEl = document.getElementById('todayBadge');
   if (todayBadgeEl) todayBadgeEl.textContent = new Date().toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'short'});
   const logDateFilterEl = document.getElementById('logDateFilter');

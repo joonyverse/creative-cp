@@ -47,20 +47,34 @@
 
   <!-- DASHBOARD -->
   <div class="page active" id="page-dashboard">
+    <!-- 대시보드 날짜 이동 제어 바 -->
+    <div class="dashboard-date-ctrl mb16 card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:16px;font-weight:800;color:var(--text);" id="dashboardDateTitle">오늘 (2026.06.25)</span>
+        <span class="badge badge-blue" id="dashboardDateBadge">TODAY</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-sm" style="border:1.5px solid var(--border);color:var(--text);background:white;padding:6px 12px;" onclick="moveDashboardDate(-1)">◀ 이전 날짜</button>
+        <input type="date" id="dashDatePicker" onchange="onDashboardDateChange()" style="padding:5px 8px;border-radius:8px;border:1.5px solid var(--border);font-size:13px;width:140px;height:30px;">
+        <button class="btn btn-sm" style="border:1.5px solid var(--border);color:var(--text);background:white;padding:6px 12px;" onclick="moveDashboardDate(1)">다음 날짜 ▶</button>
+        <button class="btn btn-sm btn-primary" style="padding:6px 14px;" onclick="resetDashboardDate()">오늘</button>
+      </div>
+    </div>
+
     <div class="grid-4 mb16" id="statCards"></div>
     <div class="grid-2">
       <div class="card">
-        <div class="card-title"><span class="icon">⚡</span> 여유 리소스 TOP 5 (오늘)</div>
+        <div class="card-title"><span class="icon">⚡</span> 여유 리소스 TOP 5 <span id="availListDateLabel" style="font-size:12px;font-weight:normal;color:var(--text-light);margin-left:4px;">(오늘)</span></div>
         <div id="availList" class="avail-list"></div>
       </div>
       <div class="card">
-        <div class="card-title"><span class="icon">🔥</span> 과부하 위험 팀원</div>
+        <div class="card-title"><span class="icon">🔥</span> 과부하 위험 팀원 <span id="overloadListDateLabel" style="font-size:12px;font-weight:normal;color:var(--text-light);margin-left:4px;">(오늘)</span></div>
         <div id="overloadList" class="avail-list"></div>
       </div>
     </div>
     <div class="card mt20">
       <div class="card-title">
-        <span class="icon">📋</span> 오늘의 업무 현황
+        <span class="icon">📋</span> <span id="todayTableTitleLabel">오늘의 업무 현황</span>
         <span id="dashLastMod" class="last-mod" style="margin-left:auto;"></span>
       </div>
       <div class="table-wrap">
