@@ -367,7 +367,7 @@ function renderDashboard() {
     const top5 = sorted.slice(0, 5);
     availListEl.innerHTML = top5.length ? top5.map(({m, load}) => `
       <div class="avail-item">
-        <div class="avail-name">${m.name}</div>
+        <div class="avail-name clickable-member" onclick="viewMember('${m.id}')">${m.name}</div>
         <div class="avail-bar-wrap">
           <div class="progress-bar"><div class="progress-fill ${progressClass(load)}" style="width:${Math.min(load,100)}%"></div></div>
         </div>
@@ -382,7 +382,7 @@ function renderDashboard() {
     const over = sorted.filter(x => x.load > 80).reverse();
     overloadListEl.innerHTML = over.length ? over.map(({m, load}) => `
       <div class="avail-item">
-        <div class="avail-name">${m.name}</div>
+        <div class="avail-name clickable-member" onclick="viewMember('${m.id}')">${m.name}</div>
         <div class="avail-bar-wrap">
           <div class="progress-bar"><div class="progress-fill ${progressClass(load)}" style="width:${Math.min(load,100)}%"></div></div>
         </div>
@@ -408,9 +408,9 @@ function renderDashboard() {
       const m = getMember(l.memberId);
       const p = getProject(l.projectId);
       return `<tr>
-        <td><strong>${m?.name||'-'}</strong></td>
+        <td>${m ? `<strong class="clickable-member" onclick="viewMember('${m.id}')">${m.name}</strong>` : '-'}</td>
         <td>${roleTag(l.role)}</td>
-        <td><span class="badge badge-blue">${p?.name||'-'}</span></td>
+        <td><span class="badge badge-blue" style="cursor:pointer" onclick="viewProject('${l.projectId}')">${p?.name||'-'}</span></td>
         <td>${l.task}</td>
         <td>${pctBadge(l.pct)}</td>
         <td style="color:var(--text-light);font-size:12px">${l.createdAt||''}</td>
@@ -474,9 +474,9 @@ function renderLogs() {
       const p = getProject(l.projectId);
       return `<tr>
         <td>${formatDate(l.date)}</td>
-        <td><strong>${m?.name||'-'}</strong></td>
+        <td>${m ? `<strong class="clickable-member" onclick="viewMember('${m.id}')">${m.name}</strong>` : '-'}</td>
         <td>${roleTag(l.role)}</td>
-        <td><span class="badge badge-blue">${p?.name||'-'}</span></td>
+        <td><span class="badge badge-blue" style="cursor:pointer" onclick="viewProject('${l.projectId}')">${p?.name||'-'}</span></td>
         <td>${l.task}</td>
         <td>${pctBadge(l.pct)}</td>
         <td style="color:var(--text-light);font-size:12px">${l.note||'-'}</td>
@@ -608,7 +608,7 @@ function renderMatrix() {
 
   data.members.forEach(m => {
     let total = 0;
-    html += `<tr><td class="name-col">${m.name}<br><small style="color:var(--text-light)">${m.spec}</small></td>`;
+    html += `<tr><td class="name-col"><span class="clickable-member" onclick="viewMember('${m.id}')" style="font-weight:700">${m.name}</span><br><small style="color:var(--text-light)">${m.spec}</small></td>`;
     activeProjects.forEach(p => {
       const sum = sumMap[m.id]?.[p.id] || 0;
       const cnt = cntMap[m.id]?.[p.id] || 0;
@@ -635,10 +635,10 @@ function renderMatrix() {
       });
     }
     barsHtml += `<div class="avail-item">
-      <div class="avail-name">${m.name}</div>
+      <div class="avail-name clickable-member" onclick="viewMember('${m.id}')">${m.name}</div>
       <div class="avail-bar-wrap"><div class="progress-bar"><div class="progress-fill ${progressClass(total)}" style="width:${Math.min(total,100)}%"></div></div></div>
       <div class="avail-pct">${total}%</div>
-      <div style="font-size:12px;min-width:80px;text-align:right;color:${total>100?'var(--danger)':total>80?'var(--warning)':'var(--success)'}">${total>100?'🔴 과부하':total>80?'🟠 주의':'🟢 정상'}</div>
+      <div style="font-size:12px;min-width:80px;text-align:right;color:${total>100?'var(--danger)':total>80?'var(--warning)':'var(--success)'}">${total>100?'🔴 과부하':total>80?'조 주의':'🟢 정상'}</div>
     </div>`;
   });
   barsHtml += '</div>';
@@ -871,6 +871,133 @@ function viewProject(id) {
   if (projectDetailModal) projectDetailModal.classList.add('open');
 }
 
+// READ - member detail view
+function viewMember(id) {
+  const m = getMember(id);
+  if (!m) return;
+
+  const headerEl = document.getElementById('memberDetailHeader');
+  if (headerEl) headerEl.style.background = 'linear-gradient(135deg, var(--accent), var(--primary))';
+
+  const titleEl = document.getElementById('memberDetailTitle');
+  if (titleEl) titleEl.textContent = `${m.title} · 전문분야: ${m.spec}`;
+
+  const nameEl = document.getElementById('memberDetailName');
+  if (nameEl) nameEl.textContent = m.name;
+
+  const specEl = document.getElementById('memberDetailSpec');
+  if (specEl) specEl.textContent = `${m.name} 님의 상세 활동 및 투입 현황입니다.`;
+
+  // Stats calculation
+  const td = today();
+  const todayLogs = data.logs.filter(l => l.memberId === id && l.date === td);
+  const todayLoad = todayLogs.reduce((sum, l) => sum + l.pct, 0);
+
+  // Last 7 days dates
+  const dates = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    dates.push(d.toISOString().split('T')[0]);
+  }
+
+  let totalSum = 0;
+  const dayLoads = dates.map(date => {
+    const logsForDay = data.logs.filter(l => l.memberId === id && l.date === date);
+    const daySum = logsForDay.reduce((sum, l) => sum + l.pct, 0);
+    totalSum += daySum;
+    return { date, load: daySum };
+  });
+  const avg7Days = Math.round(totalSum / 7);
+
+  // Active projects (PD, PL, or member)
+  const activeProjects = data.projects.filter(p => p.status === '진행중' && (p.pd === id || p.pl === id || (p.members || []).includes(id)));
+
+  // Meta Grid
+  const metaEl = document.getElementById('memberDetailMeta');
+  if (metaEl) {
+    metaEl.innerHTML = `
+      <div class="detail-meta-item"><div class="detail-meta-label">오늘 투입률</div><div class="detail-meta-value">${pctBadge(todayLoad)}</div></div>
+      <div class="detail-meta-item"><div class="detail-meta-label">7일 평균 투입률</div><div class="detail-meta-value">${pctBadge(avg7Days)}</div></div>
+      <div class="detail-meta-item"><div class="detail-meta-label">참여 활성 프로젝트</div><div class="detail-meta-value">${activeProjects.length}개</div></div>
+    `;
+  }
+
+  // Active projects list
+  const projectsEl = document.getElementById('memberDetailProjects');
+  if (projectsEl) {
+    projectsEl.innerHTML = activeProjects.map(p => {
+      const isPD = p.pd === id;
+      const isPL = p.pl === id;
+      const roleLabel = isPD ? 'PD' : isPL ? 'PL' : '팀원';
+      const roleClass = isPD ? 'role-pd' : isPL ? 'role-pl' : 'role-mb';
+      const color = p.color || '#4361ee';
+      return `
+        <div style="display:flex;align-items:center;gap:6px;background:#f0f4ff;border:1px solid #c7d2fe;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer" onclick="closeModal('memberDetailModal'); viewProject('${p.id}')">
+          <span class="${roleClass}" style="padding:1px 4px;font-size:10px;">${roleLabel}</span>
+          <strong style="color:${color}">${p.name}</strong>
+        </div>
+      `;
+    }).join('') || '<span style="color:var(--text-light);font-size:13px">참여 중인 진행중 프로젝트가 없습니다.</span>';
+  }
+
+  // Render CSS chart
+  function chartClass(p) {
+    if (p <= 30) return 'low';
+    if (p <= 80) return 'mid';
+    if (p <= 100) return 'high';
+    return 'over';
+  }
+
+  const chartEl = document.getElementById('memberDetailChart');
+  if (chartEl) {
+    chartEl.innerHTML = dayLoads.map(dl => {
+      const dObj = new Date(dl.date);
+      const dateLabel = `${String(dObj.getMonth()+1).padStart(2,'0')}.${String(dObj.getDate()).padStart(2,'0')}`;
+      const cCls = chartClass(dl.load);
+      const heightPct = Math.min(100, dl.load);
+      return `
+        <div class="member-chart-col">
+          <div class="member-chart-val">${dl.load}%</div>
+          <div class="member-chart-bar-track" title="${dl.date}: ${dl.load}%">
+            <div class="member-chart-bar-fill ${cCls}" style="height:${heightPct}%"></div>
+          </div>
+          <div class="member-chart-date">${dateLabel}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Recent logs (last 5)
+  const memberLogs = data.logs.filter(l => l.memberId === id).sort((a,b) => b.date.localeCompare(a.date)).slice(0, 5);
+  const logsBodyEl = document.getElementById('memberDetailLogsBody');
+  if (logsBodyEl) {
+    logsBodyEl.innerHTML = memberLogs.map(l => {
+      const p = getProject(l.projectId);
+      return `
+        <tr>
+          <td>${formatDate(l.date)}</td>
+          <td><span class="badge badge-blue" style="cursor:pointer" onclick="closeModal('memberDetailModal'); viewProject('${l.projectId}')">${p?.name || '-'}</span></td>
+          <td>${l.task}</td>
+          <td>${pctBadge(l.pct)}</td>
+        </tr>
+      `;
+    }).join('') || '<tr><td colspan="4" class="empty-state" style="padding:14px">최근 등록된 업무 로그가 없습니다.</td></tr>';
+  }
+
+  // Edit action binding
+  const editBtn = document.getElementById('memberDetailEditBtn');
+  if (editBtn) {
+    editBtn.onclick = () => {
+      closeModal('memberDetailModal');
+      editMember(id);
+    };
+  }
+
+  const memberDetailModal = document.getElementById('memberDetailModal');
+  if (memberDetailModal) memberDetailModal.classList.add('open');
+}
+
 // CREATE / UPDATE
 function openProjectModal() {
   populateSelects();
@@ -1055,10 +1182,10 @@ function renderMembersPage() {
           <span class="drag-handle" title="드래그하여 순서 변경">⠿</span>
         </td>
         <td style="color:var(--text-light);font-size:12px;text-align:center;font-weight:700">${idx+1}</td>
-        <td><strong>${m.name}</strong></td>
+        <td><strong class="clickable-member" onclick="viewMember('${m.id}')">${m.name}</strong></td>
         <td>${m.title}</td>
         <td>${m.spec}</td>
-        <td>${myProjects.map(p=>`<span class="badge badge-blue" style="margin:2px">${p.name.substring(0,6)}</span>`).join('')||'-'}</td>
+        <td>${myProjects.map(p=>`<span class="badge badge-blue" style="margin:2px;cursor:pointer" onclick="viewProject('${p.id}')">${p.name.substring(0,6)}</span>`).join('')||'-'}</td>
         <td>${pctBadge(load)}</td>
         <td><span style="color:${free>50?'var(--success)':free>20?'var(--warning)':'var(--danger)'}; font-weight:700">${free}%</span></td>
         <td>

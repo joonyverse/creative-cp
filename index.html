@@ -375,6 +375,39 @@
   </div>
 </div>
 
+<!-- Member Detail Modal -->
+<div class="modal-overlay" id="memberDetailModal">
+  <div class="modal" style="width:600px;">
+    <div id="memberDetailHeader" style="border-radius:10px;padding:20px;margin-bottom:20px;color:white;">
+      <div style="font-size:11px;opacity:0.8;margin-bottom:4px;" id="memberDetailTitle"></div>
+      <div style="font-size:22px;font-weight:800;margin-bottom:6px;" id="memberDetailName"></div>
+      <div style="font-size:13px;opacity:0.85;" id="memberDetailSpec"></div>
+    </div>
+    <div class="grid-3" style="margin-bottom:16px;" id="memberDetailMeta"></div>
+    <div class="mb16">
+      <div style="font-size:12px;font-weight:700;color:var(--text-light);margin-bottom:8px;">참여 프로젝트</div>
+      <div id="memberDetailProjects" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
+    <div class="mb16">
+      <div style="font-size:12px;font-weight:700;color:var(--text-light);margin-bottom:8px;">최근 7일간 투입률 추이</div>
+      <div id="memberDetailChart" class="member-chart-container"></div>
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:700;color:var(--text-light);margin-bottom:8px;">최근 업무 로그 (최대 5건)</div>
+      <div id="memberDetailLogs" class="table-wrap">
+        <table>
+          <thead><tr><th>날짜</th><th>프로젝트</th><th>업무내용</th><th>투입률</th></tr></thead>
+          <tbody id="memberDetailLogsBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('memberDetailModal')">닫기</button>
+      <button class="btn btn-primary" id="memberDetailEditBtn">✏️ 수정</button>
+    </div>
+  </div>
+</div>
+
 <!-- Delete Confirm Modal -->
 <div class="modal-overlay" id="projDeleteModal">
   <div class="modal" style="max-width:380px;text-align:center;">
