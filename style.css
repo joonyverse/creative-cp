@@ -534,6 +534,22 @@ textarea { resize: vertical; min-height: 60px; }
   border-bottom: 2px solid var(--border);
   box-sizing: border-box;
 }
+/* 트렌드 차트 래퍼 스크롤바 스타일 커스텀 */
+.trend-chart-wrapper::-webkit-scrollbar {
+  height: 5px;
+}
+.trend-chart-wrapper::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 10px;
+}
+.trend-chart-wrapper::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+.trend-chart-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 .trend-bar-col {
   display: flex;
   flex-direction: column;
@@ -541,7 +557,7 @@ textarea { resize: vertical; min-height: 60px; }
   justify-content: flex-end;
   height: 100%;
   flex: 1;
-  min-width: 24px;
+  min-width: 16px;
   gap: 6px;
   position: relative;
 }
