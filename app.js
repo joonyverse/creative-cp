@@ -2136,7 +2136,7 @@ async function init() {
   let startPage = 'dashboard';
   try {
     const savedPage = localStorage.getItem('creative_cp_active_page');
-    if (savedPage && ['dashboard', 'logs', 'matrix', 'projects', 'members'].includes(savedPage)) {
+    if (savedPage && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics'].includes(savedPage)) {
       startPage = savedPage;
     }
   } catch(e) {}
