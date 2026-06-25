@@ -2763,6 +2763,9 @@ function renderAnalytics() {
       dayCount++;
     }
     
+    // 31일(약 1달) 이하 범위인 경우 불필요한 횡스크롤바 방지를 위해 overflow-x를 hidden으로 설정, 초과시 auto로 설정
+    trendChart.style.overflowX = datesInRange.length <= 31 ? 'hidden' : 'auto';
+    
     datesInRange.forEach((dateStr, idx) => {
       const load = dailyLoads[dateStr] || 0;
       const dObj = new Date(dateStr);
