@@ -1,7 +1,7 @@
 // ===================== SUPABASE CONFIG =====================
 // Replace these with your actual Supabase project details from the dashboard
 const SUPABASE_URL = window.location.origin + '/supabase';
-const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_ZOVbFy-73g31WVRWoXQj_w_XRwjNLpC';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_mNaA5n2HOEFE9wAS4rgKCg_hjf1y6f8';
 
 // Initialize Supabase client
 // Note: 'supabase' global is provided by the CDN script in index.html
@@ -109,13 +109,15 @@ async function reloadData() {
 
 function startAutoRefresh() {
   if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-  // refresh every 30 seconds
+  // 30초 무한 폴링 비활성화 (Egress 트래픽 과부하 방지)
+  /*
   autoRefreshTimer = setInterval(async () => {
     await reloadData();
     renderCurrentPage();
     updateLastSyncLabel();
   }, 30000);
-  // also update time label every 5s
+  */
+  // 5초 간격의 마지막 동기화 시간 표시 업데이트는 그대로 유지
   setInterval(updateLastSyncLabel, 5000);
 }
 
