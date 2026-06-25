@@ -372,16 +372,17 @@ textarea { resize: vertical; min-height: 60px; }
   text-align: left;
 }
 .timeline-label-col:hover .timeline-proj-name {
-  color: var(--primary);
+  color: var(--primary-dark);
   text-decoration: underline;
 }
 .timeline-proj-name {
   font-size: 13px;
   font-weight: 800;
-  color: var(--text);
+  color: var(--primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color 0.15s ease;
 }
 .timeline-proj-meta {
   font-size: 11px;
