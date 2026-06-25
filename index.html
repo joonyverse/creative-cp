@@ -154,19 +154,35 @@
         <button class="btn btn-sm" onclick="moveCalendarMonth(1)" style="border:1.5px solid var(--border); background:white; color:var(--text); font-weight:700; padding: 5px 12px;">다음 달 ▶</button>
       </div>
       
-      <!-- Calendar Grid Card -->
-      <div class="card" style="padding: 16px;">
-        <div class="calendar-grid-header" style="display:grid; grid-template-columns: repeat(7, 1fr); text-align:center; font-weight:800; font-size:12px; border-bottom:2px solid var(--border); padding-bottom:10px; margin-bottom:10px; color:var(--text-light);">
-          <div style="color:var(--danger)">일</div>
-          <div>월</div>
-          <div>화</div>
-          <div>수</div>
-          <div>목</div>
-          <div>금</div>
-          <div style="color:var(--primary)">토</div>
+      <!-- Split Layout Wrapper -->
+      <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;" id="calendarSplitWrapper">
+        <!-- Left: Calendar Grid Card -->
+        <div class="card" style="padding: 16px; flex: 1; min-width: 600px; box-sizing: border-box;" id="calendarGridCard">
+          <div class="calendar-grid-header" style="display:grid; grid-template-columns: repeat(7, 1fr); text-align:center; font-weight:800; font-size:12px; border-bottom:2px solid var(--border); padding-bottom:10px; margin-bottom:10px; color:var(--text-light);">
+            <div style="color:var(--danger)">일</div>
+            <div>월</div>
+            <div>화</div>
+            <div>수</div>
+            <div>목</div>
+            <div>금</div>
+            <div style="color:var(--primary)">토</div>
+          </div>
+          <div id="calendarGridBody" style="display:grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(110px, auto); gap: 6px;">
+            <!-- Dynamically filled with renderCalendar() -->
+          </div>
         </div>
-        <div id="calendarGridBody" style="display:grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(110px, auto); gap: 6px;">
-          <!-- Dynamically filled with renderCalendar() -->
+
+        <!-- Right: Selected Day Agenda Card -->
+        <div class="card" style="width: 380px; min-width: 340px; min-height: 500px; max-height: 700px; display: flex; flex-direction: column; box-sizing: border-box; padding: 20px;" id="calendarAgendaCard">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border); padding-bottom: 12px; margin-bottom: 16px;">
+            <strong id="agendaDateTitle" style="font-size: 15px; font-weight: 800; color: var(--text);">📅 2026.06.25</strong>
+            <button class="btn btn-sm btn-primary" onclick="openLogModalWithDate(selectedCalendarDate)" style="padding: 4px 10px; font-size: 11px;">+ 업무 등록</button>
+          </div>
+          
+          <!-- Agenda Body (List of logs) -->
+          <div id="agendaLogsList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px;">
+            <!-- Dynamically filled by updateAgendaPanel() -->
+          </div>
         </div>
       </div>
     </div>
@@ -677,38 +693,6 @@
   </div>
 </div>
 
-<!-- Day Logs Details Modal -->
-<div class="modal-overlay" id="dayLogsModal">
-  <div class="modal" style="max-width: 800px; width: 90%;">
-    <div class="modal-title" style="display:flex; justify-content:space-between; align-items:center;">
-      <span id="dayLogsTitle">📅 업무 상세 로그</span>
-      <button class="btn btn-sm" onclick="closeModal('dayLogsModal')" style="background:transparent; border:none; font-size:18px; cursor:pointer; color:var(--text-light);">✕</button>
-    </div>
-    <div class="table-wrap" style="max-height: 400px; overflow-y: auto; margin-top: 14px; margin-bottom: 20px;">
-      <table>
-        <thead>
-          <tr>
-            <th>팀원</th>
-            <th>역할</th>
-            <th>프로젝트</th>
-            <th>업무내용</th>
-            <th>투입률</th>
-            <th>메모</th>
-            <th>등록자</th>
-            <th>액션</th>
-          </tr>
-        </thead>
-        <tbody id="dayLogsTableBody">
-          <!-- Dynamically filled -->
-        </tbody>
-      </table>
-    </div>
-    <div class="modal-actions" style="margin-top: 0; justify-content: flex-end; gap: 8px;">
-      <button class="btn btn-success" id="dayLogsAddBtn" onclick="closeModal('dayLogsModal'); openLogModalWithDate();">+ 새 업무 등록</button>
-      <button class="btn btn-primary" onclick="closeModal('dayLogsModal')">닫기</button>
-    </div>
-  </div>
-</div>
 
 <div class="toast" id="toast"></div>
 

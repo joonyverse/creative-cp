@@ -19,6 +19,7 @@ if (typeof supabase !== 'undefined') {
     const memberParam = params.get('member');
     const viewParam = params.get('view');
     const monthParam = params.get('month');
+    const dateParam = params.get('date');
     
     if (tabParam && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics'].includes(tabParam)) {
       startPage = tabParam;
@@ -37,6 +38,9 @@ if (typeof supabase !== 'undefined') {
     }
     if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
       window.__urlCalendarMonthStr = monthParam;
+    }
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      window.__urlSelectedCalendarDate = dateParam;
     }
   } catch(e) {}
   
@@ -69,6 +73,7 @@ let dashboardDate = null;
 let logViewMode = 'table';
 let calendarYear = new Date().getFullYear();
 let calendarMonth = new Date().getMonth() + 1;
+let selectedCalendarDate = today();
 
 async function loadFromShared() {
   if (!supabaseClient) {
@@ -398,6 +403,7 @@ function showPage(name) {
     url.searchParams.delete('member');
     url.searchParams.delete('view');
     url.searchParams.delete('month');
+    url.searchParams.delete('date');
     
     if (name === 'analytics') {
       const memberSelect = document.getElementById('analyticsMember');
@@ -416,6 +422,7 @@ function showPage(name) {
       if (logViewMode === 'calendar') {
         const mStr = `${calendarYear}-${String(calendarMonth).padStart(2, '0')}`;
         url.searchParams.set('month', mStr);
+        url.searchParams.set('date', selectedCalendarDate);
       }
     }
     window.history.replaceState(null, '', url.pathname + url.search);
@@ -759,12 +766,6 @@ async function deleteLog(id) {
   await save(); 
   renderLogs();
   showToast('삭제되었습니다');
-  
-  // If the day logs details modal is open, refresh it as well
-  const modal = document.getElementById('dayLogsModal');
-  if (modal && modal.classList.contains('open') && window.__activeDayLogsDate) {
-    showDayLogs(window.__activeDayLogsDate);
-  }
 }
 
 function setLogView(mode) {
@@ -780,8 +781,10 @@ function setLogView(mode) {
     if (mode === 'calendar') {
       const mStr = `${calendarYear}-${String(calendarMonth).padStart(2, '0')}`;
       url.searchParams.set('month', mStr);
+      url.searchParams.set('date', selectedCalendarDate);
     } else {
       url.searchParams.delete('month');
+      url.searchParams.delete('date');
     }
     window.history.replaceState(null, '', url.pathname + url.search);
   } catch(e) {}
@@ -802,11 +805,15 @@ function moveCalendarMonth(dir) {
   calendarMonth = m;
   calendarYear = y;
   
+  const pad = n => String(n).padStart(2, '0');
+  selectedCalendarDate = `${calendarYear}-${pad(calendarMonth)}-01`;
+  
   // Sync to URL
   try {
     const url = new URL(window.location.href);
-    const mStr = `${calendarYear}-${String(calendarMonth).padStart(2, '0')}`;
+    const mStr = `${calendarYear}-${pad(calendarMonth)}`;
     url.searchParams.set('month', mStr);
+    url.searchParams.set('date', selectedCalendarDate);
     window.history.replaceState(null, '', url.pathname + url.search);
   } catch(e) {}
   
@@ -879,21 +886,28 @@ function renderCalendar() {
   
   const todayStr = today();
   
+  // Validate selectedCalendarDate (in case it is unset or invalid)
+  if (!selectedCalendarDate) {
+    selectedCalendarDate = todayStr;
+  }
+  
   cells.forEach(cell => {
     // Filter cell logs
     let cellLogs = data.logs.filter(l => l.date === cell.dateStr);
     if (memVal) cellLogs = cellLogs.filter(l => l.memberId === memVal);
     if (projVal) cellLogs = cellLogs.filter(l => l.projectId === projVal);
     
-    // Sort cell logs by loading percentage descending
-    cellLogs.sort((a,b) => b.pct - a.pct);
+    // Calculate total load workload pct
+    const totalPct = cellLogs.reduce((sum, l) => sum + l.pct, 0);
     
     const isToday = (cell.dateStr === todayStr);
+    const isSelected = (cell.dateStr === selectedCalendarDate);
     
     // Classes
     let cellCls = 'calendar-cell';
     if (cell.isOutside) cellCls += ' cell-outside';
     if (isToday) cellCls += ' cell-today';
+    if (isSelected) cellCls += ' cell-selected';
     
     if (cell.dayOfWeek === 0) cellCls += ' sun';
     else if (cell.dayOfWeek === 6) cellCls += ' sat';
@@ -921,74 +935,121 @@ function renderCalendar() {
     
     const cellEl = document.createElement('div');
     cellEl.className = cellCls;
-    
-    // Set click handler and title
-    if (cellLogs.length > 0) {
-      cellEl.setAttribute('onclick', `showDayLogs('${cell.dateStr}')`);
-      cellEl.setAttribute('title', `${formatDate(cell.dateStr)}: ${cellLogs.length}건의 업무 로그 보기`);
-    } else {
-      cellEl.setAttribute('onclick', `openLogModalWithDate('${cell.dateStr}')`);
-      cellEl.setAttribute('title', `${formatDate(cell.dateStr)}: 새 업무 등록`);
-    }
+    cellEl.setAttribute('data-date', cell.dateStr);
+    cellEl.setAttribute('onclick', `selectCalendarDate('${cell.dateStr}')`);
+    cellEl.setAttribute('title', `${formatDate(cell.dateStr)}: ${cellLogs.length}건 등록됨`);
     
     cellEl.innerHTML = `
       <div class="calendar-cell-header">
         <span class="calendar-day-num">${cell.dayNum}</span>
+        ${cellLogs.length > 0 ? `
+          <span class="cal-day-summary" title="총 ${cellLogs.length}건, 투입률 합계 ${totalPct}%">
+            ${cellLogs.length}건 (${totalPct}%)
+          </span>
+        ` : ''}
       </div>
       ${eventsHtml}
     `;
     
     container.appendChild(cellEl);
   });
+  
+  // Trigger Agenda Update
+  updateAgendaPanel();
 }
 
-function showDayLogs(dateStr) {
-  window.__activeDayLogsDate = dateStr;
+function selectCalendarDate(dateStr) {
+  selectedCalendarDate = dateStr;
   
-  // Filter logs for this day
+  document.querySelectorAll('.calendar-cell').forEach(cell => {
+    cell.classList.remove('cell-selected');
+    const dNum = cell.querySelector('.calendar-day-num');
+    if (dNum) dNum.style.background = ''; // reset color background style
+  });
+  
+  const targetCell = document.querySelector(`.calendar-cell[data-date="${dateStr}"]`);
+  if (targetCell) {
+    targetCell.classList.add('cell-selected');
+  }
+  
+  // Sync to URL
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set('date', dateStr);
+    window.history.replaceState(null, '', url.pathname + url.search);
+  } catch(e) {}
+  
+  updateAgendaPanel();
+}
+
+function updateAgendaPanel() {
+  const titleEl = document.getElementById('agendaDateTitle');
+  if (titleEl) {
+    titleEl.textContent = `📅 ${formatDate(selectedCalendarDate)}`;
+  }
+  
+  const listEl = document.getElementById('agendaLogsList');
+  if (!listEl) return;
+  
   const memVal = document.getElementById('logMemberFilter').value;
   const projVal = document.getElementById('logProjectFilter').value;
   
-  let dayLogs = data.logs.filter(l => l.date === dateStr);
+  let dayLogs = data.logs.filter(l => l.date === selectedCalendarDate);
   if (memVal) dayLogs = dayLogs.filter(l => l.memberId === memVal);
   if (projVal) dayLogs = dayLogs.filter(l => l.projectId === projVal);
   
   // Sort logs by created time descending
   dayLogs.sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
   
-  const titleEl = document.getElementById('dayLogsTitle');
-  if (titleEl) {
-    titleEl.textContent = `📅 ${formatDate(dateStr)} 업무 상세 로그`;
-  }
-  
-  const tbody = document.getElementById('dayLogsTableBody');
-  if (tbody) {
-    tbody.innerHTML = dayLogs.length ? dayLogs.map(l => {
+  if (dayLogs.length === 0) {
+    listEl.innerHTML = `
+      <div style="text-align: center; color: var(--text-light); padding: 40px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <div style="font-size: 32px;">📝</div>
+        <div style="font-size: 13px; font-weight: 700;">등록된 업무 로그가 없습니다.</div>
+        <div style="font-size: 11px; opacity: 0.8;">선택한 날짜에 등록된 업무 내역이 없습니다.</div>
+      </div>
+    `;
+  } else {
+    listEl.innerHTML = dayLogs.map(l => {
       const m = getMember(l.memberId);
       const p = getProject(l.projectId);
-      return `<tr>
-        <td>${m ? `<strong class="clickable-member" onclick="closeModal('dayLogsModal'); viewMember('${m.id}')">${m.name}</strong>` : '-'}</td>
-        <td>${roleTag(l.role)}</td>
-        <td><span class="badge badge-blue" style="cursor:pointer" onclick="closeModal('dayLogsModal'); viewProject('${l.projectId}')">${p?.name||'-'}</span></td>
-        <td>${l.task}</td>
-        <td>${pctBadge(l.pct)}</td>
-        <td style="color:var(--text-light);font-size:12px">${l.note||'-'}</td>
-        <td><span class="badge badge-purple">${l.registeredBy||'-'}</span></td>
-        <td><button class="btn btn-sm btn-danger" onclick="deleteLog('${l.id}')">삭제</button></td>
-      </tr>`;
-    }).join('') : `<tr><td colspan="8" class="empty-state">해당 일에 필터 조건에 부합하는 업무 로그가 없습니다.</td></tr>`;
-  }
-  
-  const modal = document.getElementById('dayLogsModal');
-  if (modal) {
-    modal.classList.add('open');
+      const projColor = p?.color || 'var(--primary)';
+      return `
+        <div style="background: #f8fafc; border-left: 4px solid ${projColor}; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); transition: all 0.15s ease; border: 1px solid var(--border);" class="agenda-item">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <strong style="font-size: 13px; color: var(--text); cursor: pointer;" onclick="viewMember('${m?.id}')" class="clickable-member">${m?.name || '?'}</strong>
+              <span style="font-size: 9px; font-weight: 800; background: #e2e8f0; color: #475569; padding: 1px 5px; border-radius: 4px; white-space: nowrap;">${l.role}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+              <span class="badge ${l.pct <= 30 ? 'badge-green' : l.pct <= 70 ? 'badge-orange' : 'badge-red'}" style="font-size: 10px; padding: 1px 4px; white-space: nowrap;">${l.pct}%</span>
+              <button class="btn btn-sm" onclick="deleteLog('${l.id}')" style="padding: 1px 4px; font-size: 10px; background: transparent; border: none; color: var(--danger); cursor: pointer; font-weight: 700; white-space: nowrap;">삭제</button>
+            </div>
+          </div>
+          
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <span class="badge badge-blue" style="cursor: pointer; font-size: 10px; padding: 1px 4px;" onclick="viewProject('${l.projectId}')">${p?.name || '?'}</span>
+          </div>
+          
+          <div style="font-size: 12px; color: #334155; line-height: 1.4; font-weight: 600; word-break: break-all;">
+            ${l.task}
+          </div>
+          
+          ${l.note ? `<div style="font-size: 10.5px; color: var(--text-light); background: #f1f5f9; padding: 6px 8px; border-radius: 4px; margin-top: 2px; border-left: 2.5px solid #cbd5e1; word-break: break-all;">${l.note}</div>` : ''}
+          
+          <div style="font-size: 9px; color: var(--text-light); text-align: right; margin-top: 2px;">
+            등록: <strong>${l.registeredBy}</strong> | ${l.createdAt || ''}
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 }
 
 function openLogModalWithDate(dateStr) {
   openLogModal();
   const dateInput = document.getElementById('logDate');
-  const targetDate = dateStr || window.__activeDayLogsDate || today();
+  const targetDate = dateStr || selectedCalendarDate || today();
   if (dateInput) {
     dateInput.value = targetDate;
   }
@@ -2560,6 +2621,7 @@ async function init() {
     const params = new URLSearchParams(window.location.search);
     const viewParam = params.get('view');
     const monthParam = params.get('month');
+    const dateParam = params.get('date');
     
     if (viewParam && ['table', 'calendar'].includes(viewParam)) {
       logViewMode = viewParam;
@@ -2574,6 +2636,12 @@ async function init() {
       const [y, m] = monthParam.split('-').map(Number);
       calendarYear = y;
       calendarMonth = m;
+    }
+    
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      selectedCalendarDate = dateParam;
+    } else {
+      selectedCalendarDate = today();
     }
   } catch(e) {}
 
