@@ -196,10 +196,12 @@
 
     <!-- 프로젝트 테이블 (상세 목록) -->
     <div class="card">
-      <div class="card-title" style="justify-content:space-between;">
-        <span><span class="icon">📋</span> 전체 프로젝트 목록 (총 <span id="projectCount">0</span>개)</span>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-sm" id="viewToggleBtn" onclick="toggleView()" style="background:#f0f4ff;color:var(--primary);border:1px solid #c7d2fe;">📊 카드뷰</button>
+      <div class="card-title" style="justify-content:space-between; flex-wrap: wrap; gap: 10px;">
+        <span><span class="icon">📋</span> 프로젝트 목록 (총 <span id="projectCount">0</span>개)</span>
+        <div style="display:flex; gap:6px;" id="projViewSelector">
+          <button class="btn btn-sm btn-primary" id="btnViewCard" onclick="setProjView('card')" style="padding: 5px 12px;">📊 카드뷰</button>
+          <button class="btn btn-sm" id="btnViewTable" style="background:#f0f4ff;color:var(--primary);border:1px solid #c7d2fe; padding: 5px 12px;" onclick="setProjView('table')">📋 테이블뷰</button>
+          <button class="btn btn-sm" id="btnViewTimeline" style="background:#f0f4ff;color:var(--primary);border:1px solid #c7d2fe; padding: 5px 12px;" onclick="setProjView('timeline')">📅 타임라인뷰</button>
         </div>
       </div>
       <div class="table-wrap" id="projTableWrap">
@@ -207,6 +209,12 @@
           <thead><tr><th style="width:36px"></th><th style="width:28px">#</th><th>프로젝트명</th><th>상태</th><th>우선순위</th><th>PD</th><th>PL</th><th>팀원</th><th>참여인원</th><th>마지막 수정</th><th>액션</th></tr></thead>
           <tbody id="projectTableBody"></tbody>
         </table>
+      </div>
+      <!-- 프로젝트 타임라인 (간트 차트) -->
+      <div class="timeline-wrap" id="projTimelineWrap" style="display:none;">
+        <div class="timeline-grid" id="timelineGrid">
+          <!-- Dynamically generated headers and project rows will go here -->
+        </div>
       </div>
     </div>
   </div>

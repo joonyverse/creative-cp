@@ -292,6 +292,134 @@ textarea { resize: vertical; min-height: 60px; }
   box-shadow: 0 2px 6px rgba(67, 97, 238, 0.08);
 }
 
+/* 프로젝트 타임라인 / 간트 차트 뷰 */
+.timeline-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid var(--border);
+  margin-top: 10px;
+}
+.timeline-grid {
+  display: grid;
+  grid-template-columns: 240px repeat(42, minmax(32px, 1fr));
+  min-width: 1580px; /* 가로 스크롤을 충분히 확보 */
+}
+.timeline-header-cell {
+  padding: 10px 2px;
+  border-bottom: 2px solid var(--border);
+  border-right: 1.5px dashed var(--border);
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-light);
+  background: #f8f9ff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  box-sizing: border-box;
+}
+.timeline-header-cell.header-label {
+  text-align: left;
+  align-items: flex-start;
+  padding-left: 14px;
+  font-size: 13px;
+  color: var(--text);
+  border-right: 2px solid var(--border);
+  background: #f1f5f9;
+}
+.timeline-header-cell.sat { color: var(--primary); background: #f0f4ff; }
+.timeline-header-cell.sun { color: var(--danger); background: #fff1f2; }
+.timeline-header-cell.today {
+  background: #dbeafe;
+  color: var(--primary-dark);
+  border-left: 1.5px dashed var(--danger);
+  border-right: 1.5px dashed var(--danger);
+}
+.timeline-row {
+  display: grid;
+  grid-template-columns: 240px repeat(42, minmax(32px, 1fr));
+  min-width: 1580px;
+  align-items: center;
+  border-bottom: 1.5px solid var(--border);
+  height: 58px;
+  position: relative;
+}
+.timeline-row:last-child {
+  border-bottom: none;
+}
+.timeline-label-col {
+  padding: 8px 14px;
+  border-right: 2px solid var(--border);
+  background: white;
+  z-index: 5;
+  cursor: pointer;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+  text-align: left;
+}
+.timeline-label-col:hover .timeline-proj-name {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.timeline-proj-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.timeline-proj-meta {
+  font-size: 11px;
+  color: var(--text-light);
+  margin-top: 2px;
+}
+.timeline-grid-cell {
+  height: 100%;
+  border-right: 1.5px dashed #f1f5f9;
+  box-sizing: border-box;
+}
+.timeline-grid-cell.cell-sat { background: #f8fafc; }
+.timeline-grid-cell.cell-sun { background: #fffafb; }
+.timeline-grid-cell.cell-today {
+  background: #eff6ff;
+  border-left: 1.5px dashed var(--danger);
+  border-right: 1.5px dashed var(--danger);
+}
+.timeline-bar {
+  grid-row: 1; /* 그리드 셀 위에 얹음 */
+  margin: 10px 4px;
+  height: 38px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  z-index: 2;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: transform 0.12s, box-shadow 0.12s;
+  box-sizing: border-box;
+}
+.timeline-bar:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.16);
+}
+.timeline-bar-text {
+  text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+}
+
 @media (max-width: 768px) {
   .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
   .content { padding: 14px; }

@@ -700,22 +700,31 @@ function renderMatrix() {
 }
 
 // ===================== PROJECTS CRUD =====================
-let projViewMode = 'table'; // 'table' | 'card'
+let projViewMode = 'table'; // 'table' | 'card' | 'timeline'
 
-function toggleView() {
-  projViewMode = projViewMode === 'table' ? 'card' : 'table';
-  const btn = document.getElementById('viewToggleBtn');
-  const tableWrap = document.getElementById('projTableWrap');
-  const cardGrid = document.getElementById('projCardGrid');
-  if (projViewMode === 'card') {
-    if (tableWrap) tableWrap.style.display = 'none';
-    if (cardGrid) cardGrid.style.display = 'grid';
-    if (btn) btn.textContent = '📋 테이블뷰';
-  } else {
-    if (tableWrap) tableWrap.style.display = '';
-    if (cardGrid) cardGrid.style.display = 'none';
-    if (btn) btn.textContent = '📊 카드뷰';
+function setProjView(mode) {
+  projViewMode = mode;
+  
+  const btnCard = document.getElementById('btnViewCard');
+  const btnTable = document.getElementById('btnViewTable');
+  const btnTimeline = document.getElementById('btnViewTimeline');
+  
+  if (btnCard && btnTable && btnTimeline) {
+    [btnCard, btnTable, btnTimeline].forEach(btn => {
+      btn.className = 'btn btn-sm';
+      btn.style.background = '#f0f4ff';
+      btn.style.color = 'var(--primary)';
+      btn.style.border = '1px solid #c7d2fe';
+    });
+    
+    const activeBtn = mode === 'card' ? btnCard : mode === 'table' ? btnTable : btnTimeline;
+    activeBtn.className = 'btn btn-sm btn-primary';
+    activeBtn.style.background = '';
+    activeBtn.style.color = '';
+    activeBtn.style.border = '';
   }
+  
+  renderProjects();
 }
 
 function getFilteredProjects() {
@@ -853,9 +862,167 @@ function renderProjects() {
   // sync view mode display
   const tableWrap = document.getElementById('projTableWrap');
   const cardGrid = document.getElementById('projCardGrid');
-  if (projViewMode === 'card') { if (tableWrap) tableWrap.style.display = 'none'; if (cardGrid) cardGrid.style.display = 'grid'; }
-  else { if (tableWrap) tableWrap.style.display = ''; if (cardGrid) cardGrid.style.display = 'none'; }
+  const timelineWrap = document.getElementById('projTimelineWrap');
+  if (projViewMode === 'card') {
+    if (tableWrap) tableWrap.style.display = 'none';
+    if (cardGrid) cardGrid.style.display = 'grid';
+    if (timelineWrap) timelineWrap.style.display = 'none';
+  } else if (projViewMode === 'table') {
+    if (tableWrap) tableWrap.style.display = '';
+    if (cardGrid) cardGrid.style.display = 'none';
+    if (timelineWrap) timelineWrap.style.display = 'none';
+  } else if (projViewMode === 'timeline') {
+    if (tableWrap) tableWrap.style.display = 'none';
+    if (cardGrid) cardGrid.style.display = 'none';
+    if (timelineWrap) timelineWrap.style.display = 'block';
+    renderTimeline(list);
+  }
 }
+
+function renderTimeline(list) {
+  const container = document.getElementById('timelineGrid');
+  if (!container) return;
+  
+  const TIMELINE_DAYS = 42;
+  const timelineStart = new Date();
+  timelineStart.setDate(timelineStart.getDate() - 7); // Start 7 days ago
+  timelineStart.setHours(0, 0, 0, 0);
+  
+  const days = [];
+  for (let i = 0; i < TIMELINE_DAYS; i++) {
+    const d = new Date(timelineStart);
+    d.setDate(d.getDate() + i);
+    days.push(d);
+  }
+  
+  // 1. Generate Headers
+  let headerHtml = `<div class="timeline-header-cell header-label">프로젝트 일정 (6주)</div>`;
+  
+  let currentMonth = -1;
+  days.forEach((day, idx) => {
+    const m = day.getMonth() + 1;
+    const dateStr = day.getDate();
+    const dayOfWeek = day.getDay(); // 0: Sun, 6: Sat
+    const isSat = dayOfWeek === 6;
+    const isSun = dayOfWeek === 0;
+    const dateISO = day.toISOString().split('T')[0];
+    const isToday = (dateISO === today());
+    
+    let cellCls = 'timeline-header-cell';
+    if (isToday) cellCls += ' today';
+    else if (isSat) cellCls += ' sat';
+    else if (isSun) cellCls += ' sun';
+    
+    // Show month label if it's the first cell or boundary of month
+    let monthLabel = '';
+    if (idx === 0 || m !== currentMonth) {
+      monthLabel = `<span style="font-size: 8px; opacity: 0.8; font-weight: 800;">${m}월</span>`;
+      currentMonth = m;
+    }
+    
+    const dayLabel = isToday ? '<strong style="color:var(--danger)">오늘</strong>' : dateStr;
+    const weekLabels = ['일', '월', '화', '수', '목', '금', '토'];
+    const weekLabel = weekLabels[dayOfWeek];
+    
+    headerHtml += `
+      <div class="${cellCls}" title="${m}월 ${dateStr}일 (${weekLabel})">
+        ${monthLabel}
+        <div>${dayLabel}</div>
+        <div style="font-size: 8px; font-weight: normal; opacity: 0.7;">${weekLabel}</div>
+      </div>
+    `;
+  });
+  
+  // 2. Generate Project Rows
+  let rowsHtml = '';
+  list.forEach(p => {
+    // Project dates
+    let gridStart = -1;
+    let gridEnd = -1;
+    
+    if (p.startDate) {
+      const pStart = new Date(p.startDate);
+      pStart.setHours(0,0,0,0);
+      const diffStart = Math.ceil((pStart - timelineStart) / (1000 * 60 * 60 * 24));
+      gridStart = diffStart;
+    }
+    
+    if (p.deadline) {
+      const pEnd = new Date(p.deadline);
+      pEnd.setHours(0,0,0,0);
+      const diffEnd = Math.ceil((pEnd - timelineStart) / (1000 * 60 * 60 * 24));
+      gridEnd = diffEnd;
+    }
+    
+    // If no start date, default to today's index on timeline (which is index 7)
+    if (gridStart === -1) {
+      gridStart = 7;
+    }
+    // If no deadline, default to start date + 14 days or timeline end
+    if (gridEnd === -1) {
+      gridEnd = gridStart + 14;
+    }
+    
+    // Align indices to grid column range: index 0 maps to column 2, index 41 maps to column 43
+    // Columns are from 2 to 43 (total 42 days)
+    const colStart = Math.max(2, gridStart + 2);
+    const colEnd = Math.min(43, gridEnd + 2);
+    
+    // Generate background cells
+    let cellsHtml = '';
+    days.forEach((day, idx) => {
+      const dayOfWeek = day.getDay();
+      const isSat = dayOfWeek === 6;
+      const isSun = dayOfWeek === 0;
+      const dateISO = day.toISOString().split('T')[0];
+      const isToday = (dateISO === today());
+      
+      let cellCls = 'timeline-grid-cell';
+      if (isToday) cellCls += ' cell-today';
+      else if (isSat) cellCls += ' cell-sat';
+      else if (isSun) cellCls += ' cell-sun';
+      
+      cellsHtml += `<div class="${cellCls}" style="grid-column: ${idx + 2}"></div>`;
+    });
+    
+    // We only render the bar if it overlaps with the timeline window
+    const pd = getMember(p.pd);
+    const pl = getMember(p.pl);
+    const dateRangeStr = `${p.startDate ? formatDate(p.startDate) : '-'} ~ ${p.deadline ? formatDate(p.deadline) : '-'}`;
+    
+    let barHtml = '';
+    if (gridStart < TIMELINE_DAYS && gridEnd >= 0) {
+      barHtml = `
+        <div class="timeline-bar" style="grid-column: ${colStart} / ${colEnd + 2}; background: ${p.color || 'var(--primary)'}" onclick="viewProject('${p.id}')">
+          <span class="timeline-bar-text" title="${p.name} (${p.status}) | ${dateRangeStr}">${p.name} (${p.status})</span>
+        </div>
+      `;
+    }
+    
+    rowsHtml += `
+      <div class="timeline-row">
+        <div class="timeline-label-col" onclick="viewProject('${p.id}')" title="상세 정보 보기">
+          <div class="timeline-proj-name">${p.name}</div>
+          <div class="timeline-proj-meta">PD: ${pd?.name || '-'} · PL: ${pl?.name || '-'}</div>
+        </div>
+        ${cellsHtml}
+        ${barHtml}
+      </div>
+    `;
+  });
+  
+  if (list.length === 0) {
+    rowsHtml = `
+      <div style="grid-column: 1 / -1; background: white; padding: 40px; text-align: center; color: var(--text-light);">
+        <div style="font-size: 40px; margin-bottom: 10px;">🔍</div>
+        조건에 맞는 프로젝트 일정이 없습니다.
+      </div>
+    `;
+  }
+  
+  container.innerHTML = headerHtml + rowsHtml;
+}
+
 
 function deadlineBadge(deadline) {
   const diff = Math.ceil((new Date(deadline) - new Date()) / (1000*60*60*24));
