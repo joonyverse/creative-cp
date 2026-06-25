@@ -15,13 +15,13 @@ if (typeof supabase !== 'undefined') {
   let startPage = 'dashboard';
   try {
     const savedPage = localStorage.getItem('creative_cp_active_page');
-    if (savedPage && ['dashboard', 'logs', 'matrix', 'projects', 'members'].includes(savedPage)) {
+    if (savedPage && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics'].includes(savedPage)) {
       startPage = savedPage;
     }
   } catch(e) {}
   
   // Update DOM classes immediately (to avoid visual flash during loading)
-  const pageMap = {dashboard:0, logs:1, matrix:2, projects:3, members:4};
+  const pageMap = {dashboard:0, logs:1, matrix:2, projects:3, members:4, analytics:5};
   const tabs = document.querySelectorAll('.tabs .tab');
   if (tabs && tabs.length > 0) {
     tabs.forEach(t => t.classList.remove('active'));
@@ -245,6 +245,7 @@ function renderCurrentPage() {
   else if (currentPage === 'matrix') renderMatrix();
   else if (currentPage === 'projects') renderProjects();
   else if (currentPage === 'members') renderMembersPage();
+  else if (currentPage === 'analytics') renderAnalytics();
 }
 
 // ===================== USER IDENTITY =====================
@@ -361,7 +362,7 @@ function showPage(name) {
   const targetPage = document.getElementById('page-' + name);
   if (targetPage) targetPage.classList.add('active');
   const tabs = document.querySelectorAll('.tab');
-  const pageMap = {dashboard:0, logs:1, matrix:2, projects:3, members:4};
+  const pageMap = {dashboard:0, logs:1, matrix:2, projects:3, members:4, analytics:5};
   if (tabs[pageMap[name]]) tabs[pageMap[name]].classList.add('active');
   renderCurrentPage();
 }
@@ -1257,6 +1258,15 @@ function viewMember(id) {
     };
   }
 
+  // Analytics report action binding
+  const analyticsBtn = document.getElementById('memberDetailAnalyticsBtn');
+  if (analyticsBtn) {
+    analyticsBtn.onclick = () => {
+      closeModal('memberDetailModal');
+      showMemberAnalytics(id);
+    };
+  }
+
   const memberDetailModal = document.getElementById('memberDetailModal');
   if (memberDetailModal) memberDetailModal.classList.add('open');
 }
@@ -1592,6 +1602,15 @@ function populateSelects() {
         <input type="checkbox" value="${m.id}" name="projMember"> ${m.name}
       </label>`).join('');
   }
+
+  const analyticsMemberEl = document.getElementById('analyticsMember');
+  if (analyticsMemberEl) {
+    const currentVal = analyticsMemberEl.value;
+    analyticsMemberEl.innerHTML = memberOpts;
+    if (currentVal && data.members.some(m => m.id === currentVal)) {
+      analyticsMemberEl.value = currentVal;
+    }
+  }
 }
 
 function openLogModal() {
@@ -1785,6 +1804,289 @@ window.addEventListener('click', e => {
     }
   }
 });
+
+// ===================== PERSONAL RESOURCE ANALYTICS =====================
+function getPeriodDateRange(period) {
+  const now = new Date();
+  let start = new Date();
+  let end = new Date();
+  
+  if (period === 'this_week') {
+    const day = now.getDay();
+    const diffToMon = now.getDate() - day + (day === 0 ? -6 : 1);
+    start.setDate(diffToMon);
+    start.setHours(0,0,0,0);
+    end = new Date(start);
+    end.setDate(start.getDate() + 6);
+  } else if (period === 'last_week') {
+    const day = now.getDay();
+    const diffToMon = now.getDate() - day + (day === 0 ? -6 : 1) - 7;
+    start.setDate(diffToMon);
+    start.setHours(0,0,0,0);
+    end = new Date(start);
+    end.setDate(start.getDate() + 6);
+  } else if (period === 'this_month') {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+    end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  } else if (period === 'last_month') {
+    start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    end = new Date(now.getFullYear(), now.getMonth(), 0);
+  } else if (period === 'last_30_days') {
+    start.setDate(now.getDate() - 30);
+    end = now;
+  }
+  
+  return {
+    startStr: start.toISOString().split('T')[0],
+    endStr: end.toISOString().split('T')[0]
+  };
+}
+
+function onAnalyticsPeriodChange() {
+  const period = document.getElementById('analyticsPeriod').value;
+  const startInput = document.getElementById('analyticsStart');
+  const endInput = document.getElementById('analyticsEnd');
+  
+  if (period === 'custom') {
+    startInput.disabled = false;
+    endInput.disabled = false;
+  } else {
+    startInput.disabled = true;
+    endInput.disabled = true;
+    const range = getPeriodDateRange(period);
+    startInput.value = range.startStr;
+    endInput.value = range.endStr;
+  }
+  renderAnalytics();
+}
+
+function onAnalyticsDateChange() {
+  renderAnalytics();
+}
+
+function initAnalyticsPeriod() {
+  const startInput = document.getElementById('analyticsStart');
+  const endInput = document.getElementById('analyticsEnd');
+  const periodSelect = document.getElementById('analyticsPeriod');
+  
+  if (startInput && !startInput.value) {
+    periodSelect.value = 'this_month';
+    const range = getPeriodDateRange('this_month');
+    startInput.value = range.startStr;
+    endInput.value = range.endStr;
+    startInput.disabled = true;
+    endInput.disabled = true;
+  }
+}
+
+function renderAnalytics() {
+  initAnalyticsPeriod();
+  
+  const memberSelect = document.getElementById('analyticsMember');
+  if (memberSelect && !memberSelect.value && data.members && data.members.length > 0) {
+    memberSelect.value = data.members[0].id;
+  }
+  
+  const memberId = memberSelect?.value;
+  const startStr = document.getElementById('analyticsStart')?.value;
+  const endStr = document.getElementById('analyticsEnd')?.value;
+  
+  if (!memberId || !startStr || !endStr) return;
+  
+  const member = getMember(memberId);
+  if (!member) return;
+  
+  // 1. Filter logs
+  const memberLogs = data.logs.filter(l => l.memberId === memberId && l.date >= startStr && l.date <= endStr);
+  
+  // 2. KPI Calculations
+  const uniqueDates = [...new Set(memberLogs.map(l => l.date))];
+  const totalDays = uniqueDates.length;
+  
+  let sumDailyLoad = 0;
+  let maxDailyLoad = 0;
+  let maxLoadDate = '-';
+  const dailyLoads = {};
+  
+  memberLogs.forEach(l => {
+    dailyLoads[l.date] = (dailyLoads[l.date] || 0) + l.pct;
+  });
+  
+  Object.entries(dailyLoads).forEach(([date, load]) => {
+    sumDailyLoad += load;
+    if (load > maxDailyLoad) {
+      maxDailyLoad = load;
+      maxLoadDate = date;
+    }
+  });
+  
+  const avgDailyLoad = totalDays > 0 ? Math.round(sumDailyLoad / totalDays) : 0;
+  const uniqueProjIds = [...new Set(memberLogs.map(l => l.projectId))];
+  const activeProjectsCount = uniqueProjIds.filter(id => getProject(id)).length;
+  
+  const kpiEl = document.getElementById('analyticsKpis');
+  if (kpiEl) {
+    kpiEl.innerHTML = `
+      <div class="stat-card">
+        <div class="stat-label">근무 일수</div>
+        <div class="stat-value">${totalDays}일</div>
+        <div class="stat-sub">기간 내 기록된 총 일수</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">평균 일일 투입률</div>
+        <div class="stat-value">${avgDailyLoad}%</div>
+        <div class="stat-sub">기록된 근무일 평균 투입률</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-label">최대 투입일</div>
+        <div class="stat-value">${maxDailyLoad}%</div>
+        <div class="stat-sub">${maxLoadDate !== '-' ? formatDate(maxLoadDate) : '-'}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">참여 프로젝트 수</div>
+        <div class="stat-value">${activeProjectsCount}개</div>
+        <div class="stat-sub">기간 내 배정/기록된 프로젝트</div>
+      </div>
+    `;
+  }
+  
+  const averageLoadValEl = document.getElementById('analyticsAverageLoadVal');
+  if (averageLoadValEl) {
+    averageLoadValEl.textContent = `${avgDailyLoad}%`;
+  }
+  
+  // 3. Donut Chart Portfolio
+  const projectLoadSums = {};
+  let totalLogsLoad = 0;
+  memberLogs.forEach(l => {
+    projectLoadSums[l.projectId] = (projectLoadSums[l.projectId] || 0) + l.pct;
+    totalLogsLoad += l.pct;
+  });
+  
+  const projectShares = [];
+  const cardColors = ['#4361ee','#7209b7','#06d6a0','#ef476f','#f97316','#0ea5e9','#10b981','#ffd166'];
+  
+  Object.entries(projectLoadSums).forEach(([pid, loadSum], idx) => {
+    const proj = getProject(pid);
+    const pctShare = totalLogsLoad > 0 ? Math.round((loadSum / totalLogsLoad) * 100) : 0;
+    projectShares.push({
+      pid,
+      name: proj ? proj.name : '알 수 없는 프로젝트',
+      color: proj ? (proj.color || cardColors[idx % cardColors.length]) : '#94a3b8',
+      share: pctShare,
+      rawLoad: loadSum
+    });
+  });
+  
+  projectShares.sort((a, b) => b.share - a.share);
+  
+  const donutChart = document.getElementById('analyticsDonutChart');
+  const legendEl = document.getElementById('analyticsDonutLegend');
+  
+  if (projectShares.length === 0) {
+    if (donutChart) donutChart.style.background = 'conic-gradient(#eee 0% 100%)';
+    if (legendEl) {
+      legendEl.innerHTML = `<div style="text-align:center; color:var(--text-light); font-size:13px; padding:20px 0;">기간 내 투입 기록이 없습니다.</div>`;
+    }
+  } else {
+    let currentPct = 0;
+    const gradientParts = [];
+    projectShares.forEach(share => {
+      const nextPct = currentPct + share.share;
+      gradientParts.push(`${share.color} ${currentPct}% ${nextPct}%`);
+      currentPct = nextPct;
+    });
+    
+    if (currentPct < 100) {
+      gradientParts.push(`#e2e8f0 ${currentPct}% 100%`);
+    }
+    
+    if (donutChart) {
+      donutChart.style.background = `conic-gradient(${gradientParts.join(', ')})`;
+    }
+    
+    if (legendEl) {
+      legendEl.innerHTML = projectShares.map(share => `
+        <div class="donut-legend-item" onclick="viewProject('${share.pid}')" title="프로젝트 상세 보기">
+          <div class="donut-legend-color" style="background: ${share.color}"></div>
+          <span class="donut-legend-name">${share.name}</span>
+          <span class="donut-legend-val">${share.share}% (${share.rawLoad}%)</span>
+        </div>
+      `).join('');
+    }
+  }
+  
+  // 4. Trend Chart
+  const trendChart = document.getElementById('analyticsTrendChart');
+  if (trendChart) {
+    trendChart.innerHTML = '';
+    
+    const dStart = new Date(startStr);
+    const dEnd = new Date(endStr);
+    const datesInRange = [];
+    const dateLimit = new Date(dStart);
+    
+    let dayCount = 0;
+    while (dateLimit <= dEnd && dayCount < 60) {
+      datesInRange.push(dateLimit.toISOString().split('T')[0]);
+      dateLimit.setDate(dateLimit.getDate() + 1);
+      dayCount++;
+    }
+    
+    datesInRange.forEach(dateStr => {
+      const load = dailyLoads[dateStr] || 0;
+      const dObj = new Date(dateStr);
+      const dateLabel = `${dObj.getMonth()+1}/${dObj.getDate()}`;
+      
+      const isToday = (dateStr === today());
+      
+      let dateCls = 'trend-bar-date';
+      if (isToday) dateCls += ' today';
+      
+      const heightPct = Math.min(100, load);
+      const fillCls = load <= 30 ? 'low' : load <= 70 ? 'mid' : load <= 100 ? 'high' : 'over';
+      
+      const barCol = document.createElement('div');
+      barCol.className = 'trend-bar-col';
+      barCol.innerHTML = `
+        <div class="trend-bar-tooltip">${formatDate(dateStr)}: ${load}%</div>
+        <div class="trend-bar-track">
+          <div class="trend-bar-fill ${fillCls}" style="height: ${heightPct}%"></div>
+        </div>
+        <div class="${dateCls}">${isToday ? '오늘' : dateLabel}</div>
+      `;
+      trendChart.appendChild(barCol);
+    });
+  }
+  
+  // 5. Detailed Logs Table
+  const tbody = document.getElementById('analyticsLogsBody');
+  if (tbody) {
+    memberLogs.sort((a,b) => b.date.localeCompare(a.date));
+    tbody.innerHTML = memberLogs.length ? memberLogs.map(l => {
+      const p = getProject(l.projectId);
+      return `
+        <tr>
+          <td>${formatDate(l.date)}</td>
+          <td><span class="badge badge-blue" style="cursor:pointer" onclick="viewProject('${l.projectId}')">${p ? p.name : '-'}</span></td>
+          <td>${roleTag(l.role)}</td>
+          <td>${l.task}</td>
+          <td>${pctBadge(l.pct)}</td>
+          <td style="color:var(--text-light); font-size:12px;">${l.note || '-'}</td>
+        </tr>
+      `;
+    }).join('') : `<tr><td colspan="6" class="empty-state">해당 기간 내 기록된 업무 로그가 없습니다.</td></tr>`;
+  }
+}
+
+function showMemberAnalytics(memberId) {
+  showPage('analytics');
+  const select = document.getElementById('analyticsMember');
+  if (select) {
+    select.value = memberId;
+    renderAnalytics();
+  }
+}
 
 // ===================== INIT =====================
 async function init() {

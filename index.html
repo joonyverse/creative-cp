@@ -41,6 +41,7 @@
   <div class="tab" onclick="showPage('matrix')">🗃️ 리소스 매트릭스</div>
   <div class="tab" onclick="showPage('projects')">🚀 프로젝트 관리</div>
   <div class="tab" onclick="showPage('members')">👥 팀원 관리</div>
+  <div class="tab" onclick="showPage('analytics')">📈 리소스 분석</div>
 </div>
 
 <div class="content">
@@ -235,6 +236,96 @@
         <table>
           <thead><tr><th style="width:36px"></th><th style="width:32px">#</th><th>이름</th><th>직책</th><th>전문분야</th><th>참여 프로젝트</th><th>현재 투입률</th><th>여유</th><th>액션</th></tr></thead>
           <tbody id="memberTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANALYTICS -->
+  <div class="page" id="page-analytics">
+    <!-- Filter Control Bar -->
+    <div class="card" style="margin-bottom: 20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+        <div class="section-title" style="margin:0;">📈 개인별 리소스 분석 리포트</div>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div class="form-group" style="margin:0; min-width:140px;">
+            <label style="font-size:11px; margin-bottom:4px;">팀원 선택</label>
+            <select id="analyticsMember" onchange="renderAnalytics()" style="padding: 6px 10px; font-size:13px;"></select>
+          </div>
+          <div class="form-group" style="margin:0; min-width:140px;">
+            <label style="font-size:11px; margin-bottom:4px;">기간 템플릿</label>
+            <select id="analyticsPeriod" onchange="onAnalyticsPeriodChange()" style="padding: 6px 10px; font-size:13px;">
+              <option value="this_week">이번 주</option>
+              <option value="last_week">지난 주</option>
+              <option value="this_month" selected>이번 달</option>
+              <option value="last_month">지난 달</option>
+              <option value="last_30_days">최근 30일</option>
+              <option value="custom">직접 지정</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0; max-width:140px;">
+            <label style="font-size:11px; margin-bottom:4px;">시작일</label>
+            <input type="date" id="analyticsStart" onchange="onAnalyticsDateChange()" style="padding: 5px 8px; font-size:13px;">
+          </div>
+          <div class="form-group" style="margin:0; max-width:140px;">
+            <label style="font-size:11px; margin-bottom:4px;">종료일</label>
+            <input type="date" id="analyticsEnd" onchange="onAnalyticsDateChange()" style="padding: 5px 8px; font-size:13px;">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI Metrics -->
+    <div class="grid-4" id="analyticsKpis" style="margin-bottom: 20px;">
+      <!-- Dynamically filled with renderAnalytics() -->
+    </div>
+
+    <!-- Chart Visualizations -->
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom: 20px;" class="grid-2">
+      <!-- Donut Portfolio Chart Card -->
+      <div class="card" style="display:flex; flex-direction:column; min-height:360px;">
+        <div class="card-title">📊 리소스 포트폴리오 (프로젝트별 투입 비율)</div>
+        <div style="display:flex; flex:1; align-items:center; justify-content:center; gap:24px; flex-wrap:wrap; padding:10px 0;">
+          <div class="donut-chart-container" style="position:relative; width:180px; height:180px; flex-shrink:0;">
+            <div class="donut-chart" id="analyticsDonutChart" style="width:100%; height:100%; border-radius:50%; background: conic-gradient(#eee 0% 100%);"></div>
+            <div class="donut-hole" style="position:absolute; inset:28px; background:white; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:inset 0 2px 6px rgba(0,0,0,0.06);">
+              <span style="font-size:11px; color:var(--text-light); font-weight:700;">평균 투입률</span>
+              <strong style="font-size:20px; color:var(--text); font-weight:800;" id="analyticsAverageLoadVal">0%</strong>
+            </div>
+          </div>
+          <div id="analyticsDonutLegend" style="display:flex; flex-direction:column; gap:8px; flex:1; min-width:180px; justify-content:center;">
+            <!-- Dynamically generated legend -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Trend Chart Card -->
+      <div class="card" style="display:flex; flex-direction:column; min-height:360px;">
+        <div class="card-title">📈 일별 리소스 투입 추이</div>
+        <div class="trend-chart-wrapper" style="flex:1; display:flex; align-items:flex-end; gap:6px; height:100%; padding-top:20px; overflow-x:auto;" id="analyticsTrendChart">
+          <!-- Dynamically generated vertical bars -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Detailed Logs Table -->
+    <div class="card">
+      <div class="card-title">📝 기간 내 업무 기록 상세</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:90px;">날짜</th>
+              <th style="width:140px;">프로젝트</th>
+              <th style="width:60px;">역할</th>
+              <th>업무내용</th>
+              <th style="width:70px;">투입률</th>
+              <th>메모</th>
+            </tr>
+          </thead>
+          <tbody id="analyticsLogsBody">
+            <!-- Dynamically generated rows -->
+          </tbody>
         </table>
       </div>
     </div>
@@ -441,6 +532,7 @@
       </div>
     </div>
     <div class="modal-actions">
+      <button class="btn" style="background:#f0f4ff;color:var(--primary);border:1px solid #c7d2fe;" id="memberDetailAnalyticsBtn">📈 분석 리포트</button>
       <button class="btn" onclick="closeModal('memberDetailModal')">닫기</button>
       <button class="btn btn-primary" id="memberDetailEditBtn">✏️ 수정</button>
     </div>
