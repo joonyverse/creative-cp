@@ -243,41 +243,47 @@
 
   <!-- ANALYTICS -->
   <div class="page" id="page-analytics">
-    <!-- Filter Control Bar -->
-    <div class="card" style="margin-bottom: 20px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
-        <div class="section-title" style="margin:0;">📈 개인별 리소스 분석 리포트</div>
-        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-          <div class="form-group" style="margin:0; min-width:140px;">
-            <label style="font-size:11px; margin-bottom:4px;">팀원 선택</label>
-            <select id="analyticsMember" onchange="renderAnalytics()" style="padding: 6px 10px; font-size:13px;"></select>
-          </div>
-          <div class="form-group" style="margin:0; min-width:140px;">
-            <label style="font-size:11px; margin-bottom:4px;">기간 템플릿</label>
-            <select id="analyticsPeriod" onchange="onAnalyticsPeriodChange()" style="padding: 6px 10px; font-size:13px;">
-              <option value="this_week">이번 주</option>
-              <option value="last_week">지난 주</option>
-              <option value="this_month" selected>이번 달</option>
-              <option value="last_month">지난 달</option>
-              <option value="last_30_days">최근 30일</option>
-              <option value="custom">직접 지정</option>
-            </select>
-          </div>
-          <div class="form-group" style="margin:0; max-width:140px;">
-            <label style="font-size:11px; margin-bottom:4px;">시작일</label>
-            <input type="date" id="analyticsStart" onchange="onAnalyticsDateChange()" style="padding: 5px 8px; font-size:13px;">
-          </div>
-          <div class="form-group" style="margin:0; max-width:140px;">
-            <label style="font-size:11px; margin-bottom:4px;">종료일</label>
-            <input type="date" id="analyticsEnd" onchange="onAnalyticsDateChange()" style="padding: 5px 8px; font-size:13px;">
-          </div>
+    <!-- Unified Analytics Profile & Filter Header -->
+    <div class="card" id="analyticsHeaderCard" style="margin-bottom: 20px; background: linear-gradient(135deg, var(--accent), var(--primary)); color: white; display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 22px 28px; flex-wrap: wrap; border: none; box-shadow: 0 4px 20px rgba(67, 97, 238, 0.15); position: relative; overflow: hidden;">
+      
+      <!-- Decorative background glow -->
+      <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: rgba(255, 255, 255, 0.1); border-radius: 50%; filter: blur(30px); pointer-events: none;"></div>
+      <div style="position: absolute; bottom: -30px; left: 10%; width: 100px; height: 100px; background: rgba(255, 255, 255, 0.08); border-radius: 50%; filter: blur(20px); pointer-events: none;"></div>
+      
+      <!-- Left: Member Profile Info (Dynamic) -->
+      <div id="analyticsMemberProfile" style="display: flex; align-items: center; gap: 20px; flex: 1; min-width: 280px; z-index: 1;">
+        <!-- Dynamically filled with renderAnalytics() -->
+      </div>
+      
+      <!-- Right: Filters Control (Static) -->
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: rgba(255, 255, 255, 0.12); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); padding: 12px 18px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); z-index: 1; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);" id="analyticsFilters">
+        <div class="form-group" style="margin:0; min-width:130px;">
+          <label style="font-size:10px; margin-bottom:4px; color: rgba(255, 255, 255, 0.8); font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">팀원 선택</label>
+          <select id="analyticsMember" onchange="renderAnalytics()" style="width: 100%;">
+            <!-- dynamically loaded -->
+          </select>
+        </div>
+        <div class="form-group" style="margin:0; min-width:130px;">
+          <label style="font-size:10px; margin-bottom:4px; color: rgba(255, 255, 255, 0.8); font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">기간 템플릿</label>
+          <select id="analyticsPeriod" onchange="onAnalyticsPeriodChange()" style="width: 100%;">
+            <option value="this_week" style="color: var(--text);">이번 주</option>
+            <option value="last_week" style="color: var(--text);">지난 주</option>
+            <option value="this_month" selected style="color: var(--text);">이번 달</option>
+            <option value="last_month" style="color: var(--text);">지난 달</option>
+            <option value="last_30_days" style="color: var(--text);">최근 30일</option>
+            <option value="custom" style="color: var(--text);">직접 지정</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0; max-width:120px;">
+          <label style="font-size:10px; margin-bottom:4px; color: rgba(255, 255, 255, 0.8); font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">시작일</label>
+          <input type="date" id="analyticsStart" onchange="onAnalyticsDateChange()" style="width: 100%;">
+        </div>
+        <div class="form-group" style="margin:0; max-width:120px;">
+          <label style="font-size:10px; margin-bottom:4px; color: rgba(255, 255, 255, 0.8); font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">종료일</label>
+          <input type="date" id="analyticsEnd" onchange="onAnalyticsDateChange()" style="width: 100%;">
         </div>
       </div>
-    </div>
-
-    <!-- Member Profile Banner -->
-    <div id="analyticsMemberProfile" class="card" style="margin-bottom: 20px; background: linear-gradient(135deg, var(--accent), var(--primary)); color: white; display: flex; align-items: center; gap: 20px; padding: 18px 24px;">
-      <!-- Dynamically filled with renderAnalytics() -->
+      
     </div>
 
     <!-- KPI Metrics -->

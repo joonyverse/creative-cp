@@ -553,6 +553,35 @@ textarea { resize: vertical; min-height: 60px; }
   font-weight: 800;
 }
 
+/* Glassmorphism filters styling inside analytics header banner */
+#analyticsFilters select,
+#analyticsFilters input[type="date"] {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+  transition: all 0.2s ease;
+  height: 30px;
+  box-sizing: border-box;
+}
+
+#analyticsFilters select:hover,
+#analyticsFilters input[type="date"]:hover,
+#analyticsFilters select:focus,
+#analyticsFilters input[type="date"]:focus {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+
+#analyticsFilters select option {
+  background: white;
+  color: var(--text);
+}
+
 @media (max-width: 768px) {
   .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
   .content { padding: 14px; }
