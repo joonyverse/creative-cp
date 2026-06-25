@@ -25,21 +25,23 @@ async function loadFromShared() {
     return null;
   }
   try {
-    const { data: row, error } = await supabaseClient
-      .from('app_state')
-      .select('data')
-      .eq('id', 1)
-      .single();
+    const [mRes, pRes, lRes] = await Promise.all([
+      supabaseClient.from('members').select('*'),
+      supabaseClient.from('projects').select('*'),
+      supabaseClient.from('logs').select('*')
+    ]);
     
-    if (error) {
-      if (error.code === 'PGRST116') {
-        console.log('No data found in Supabase, will use defaults');
-      } else {
-        throw error;
-      }
-      return null;
-    }
-    return row.data;
+    if (mRes.error) throw mRes.error;
+    if (pRes.error) throw pRes.error;
+    if (lRes.error) throw lRes.error;
+    
+    return {
+      members: mRes.data || [],
+      projects: pRes.data || [],
+      logs: lRes.data || [],
+      _lastModified: new Date().toISOString(),
+      _lastModifiedBy: currentUser || '알 수 없음'
+    };
   } catch(e) {
     console.error('Error loading from Supabase:', e);
   }
@@ -53,11 +55,99 @@ async function saveToShared(newData) {
     newData._lastModified = new Date().toISOString();
     newData._lastModifiedBy = currentUser || '알 수 없음';
     
-    const { error } = await supabaseClient
-      .from('app_state')
-      .upsert({ id: 1, data: newData });
+    // 1. Fetch current database IDs to determine deletions
+    const [dbMem, dbProj, dbLog] = await Promise.all([
+      supabaseClient.from('members').select('id'),
+      supabaseClient.from('projects').select('id'),
+      supabaseClient.from('logs').select('id')
+    ]);
 
-    if (error) throw error;
+    if (dbMem.error) throw dbMem.error;
+    if (dbProj.error) throw dbProj.error;
+    if (dbLog.error) throw dbLog.error;
+
+    const dbMemIds = dbMem.data.map(m => m.id);
+    const dbProjIds = dbProj.data.map(p => p.id);
+    const dbLogIds = dbLog.data.map(l => l.id);
+
+    const localMemIds = newData.members.map(m => m.id);
+    const localProjIds = newData.projects.map(p => p.id);
+    const localLogIds = newData.logs.map(l => l.id);
+
+    // 2. Identify deletions
+    const delMemIds = dbMemIds.filter(id => !localMemIds.includes(id));
+    const delProjIds = dbProjIds.filter(id => !localProjIds.includes(id));
+    const delLogIds = dbLogIds.filter(id => !localLogIds.includes(id));
+
+    // 3. Execute deletes
+    const deletePromises = [];
+    if (delLogIds.length > 0) {
+      deletePromises.push(supabaseClient.from('logs').delete().in('id', delLogIds));
+    }
+    if (delProjIds.length > 0) {
+      deletePromises.push(supabaseClient.from('projects').delete().in('id', delProjIds));
+    }
+    if (delMemIds.length > 0) {
+      deletePromises.push(supabaseClient.from('members').delete().in('id', delMemIds));
+    }
+    if (deletePromises.length > 0) {
+      await Promise.all(deletePromises);
+    }
+
+    // 4. Format objects to match database schemas
+    const formattedProjects = newData.projects.map(p => ({
+      id: p.id,
+      name: p.name,
+      desc: p.desc || '',
+      status: p.status || '진행중',
+      pd: p.pd || '',
+      pl: p.pl || '',
+      members: p.members || [],
+      priority: p.priority || '보통',
+      startDate: p.startDate || '',
+      deadline: p.deadline || '',
+      color: p.color || '#4361ee',
+      _lastModified: p._lastModified || '',
+      _lastModifiedBy: p._lastModifiedBy || ''
+    }));
+
+    const formattedLogs = newData.logs.map(l => ({
+      id: l.id,
+      pct: parseInt(l.pct) || 0,
+      date: l.date || '',
+      note: l.note || '',
+      role: l.role || '',
+      task: l.task || '',
+      memberId: l.memberId,
+      createdAt: l.createdAt || '',
+      projectId: l.projectId,
+      registeredBy: l.registeredBy || '알 수 없음'
+    }));
+
+    // 5. Execute upserts
+    const upsertPromises = [];
+    if (newData.members.length > 0) {
+      upsertPromises.push(supabaseClient.from('members').upsert(newData.members));
+    }
+    if (formattedProjects.length > 0) {
+      upsertPromises.push(supabaseClient.from('projects').upsert(formattedProjects));
+    }
+    
+    // Chunk log upserts to stay under request size limits
+    if (formattedLogs.length > 0) {
+      const chunkSize = 100;
+      for (let i = 0; i < formattedLogs.length; i += chunkSize) {
+        const chunk = formattedLogs.slice(i, i + chunkSize);
+        upsertPromises.push(supabaseClient.from('logs').upsert(chunk));
+      }
+    }
+
+    if (upsertPromises.length > 0) {
+      const results = await Promise.all(upsertPromises);
+      for (const res of results) {
+        if (res.error) throw res.error;
+      }
+    }
 
     lastSyncTime = new Date();
     setSyncStatus('ok', '팀 공유 저장소 연결됨');
