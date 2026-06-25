@@ -1387,12 +1387,25 @@ function populateSelects() {
 function openLogModal() {
   populateSelects();
   document.getElementById('logDate').value = today();
-  document.getElementById('logMember').value = '';
+  
+  // Auto-select member matching current user nickname
+  let matchedMemberId = '';
+  if (currentUser && data && data.members) {
+    const matched = data.members.find(m => m.name === currentUser);
+    if (matched) matchedMemberId = matched.id;
+  }
+  document.getElementById('logMember').value = matchedMemberId;
+  
   document.getElementById('logProject').value = '';
   document.getElementById('logRole').value = '팀원';
   document.getElementById('logTask').value = '';
   document.getElementById('logPct').value = '50';
   document.getElementById('logNote').value = '';
+  
+  if (matchedMemberId) {
+    autoFillRole();
+  }
+
   const currentUserDisplayEl = document.getElementById('currentUserDisplay');
   if (currentUserDisplayEl) currentUserDisplayEl.textContent = currentUser || '(이름 미설정)';
   const logModalEl = document.getElementById('logModal');
@@ -1408,6 +1421,37 @@ function autoFillRole() {
   if (p.pd === memberId) document.getElementById('logRole').value = 'PD';
   else if (p.pl === memberId) document.getElementById('logRole').value = 'PL';
   else document.getElementById('logRole').value = '팀원';
+}
+
+function recallLastLog() {
+  const memberId = document.getElementById('logMember').value;
+  if (!memberId) {
+    alert('팀원을 먼저 선택해주세요.');
+    return;
+  }
+  
+  const memberLogs = data.logs.filter(l => l.memberId === memberId);
+  if (memberLogs.length === 0) {
+    showToast('이전 업무 등록 기록이 없습니다.');
+    return;
+  }
+  
+  // Find the most recent log by sorting date and createdAt desc
+  const sorted = [...memberLogs].sort((a, b) => {
+    const dateComp = b.date.localeCompare(a.date);
+    if (dateComp !== 0) return dateComp;
+    return (b.createdAt || '').localeCompare(a.createdAt || '');
+  });
+  
+  const lastLog = sorted[0];
+  
+  document.getElementById('logProject').value = lastLog.projectId || '';
+  document.getElementById('logRole').value = lastLog.role || '팀원';
+  document.getElementById('logTask').value = lastLog.task || '';
+  document.getElementById('logPct').value = lastLog.pct !== undefined ? lastLog.pct : '50';
+  document.getElementById('logNote').value = lastLog.note || '';
+  
+  showToast('📋 최근 업무 내역을 불러왔습니다.');
 }
 
 async function saveLog() {
