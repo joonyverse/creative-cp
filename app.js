@@ -580,6 +580,24 @@ function pctBadge(p) {
 
 // ===================== LOGS =====================
 function renderLogs() {
+  // Sync filters to URL params
+  const memValFilter = document.getElementById('logMemberFilter')?.value || '';
+  const projValFilter = document.getElementById('logProjectFilter')?.value || '';
+  try {
+    const url = new URL(window.location.href);
+    if (memValFilter) {
+      url.searchParams.set('member', memValFilter);
+    } else {
+      url.searchParams.delete('member');
+    }
+    if (projValFilter) {
+      url.searchParams.set('project', projValFilter);
+    } else {
+      url.searchParams.delete('project');
+    }
+    window.history.replaceState(null, '', url.pathname + url.search);
+  } catch(e) {}
+
   // Sync view containers display
   const tableWrap = document.getElementById('logTableWrap');
   const calendarWrap = document.getElementById('logCalendarWrap');
@@ -2642,6 +2660,17 @@ async function init() {
       selectedCalendarDate = dateParam;
     } else {
       selectedCalendarDate = today();
+    }
+    
+    const memberParam = params.get('member');
+    const projectParam = params.get('project');
+    if (memberParam) {
+      const logMemberFilterEl = document.getElementById('logMemberFilter');
+      if (logMemberFilterEl) logMemberFilterEl.value = memberParam;
+    }
+    if (projectParam) {
+      const logProjectFilterEl = document.getElementById('logProjectFilter');
+      if (logProjectFilterEl) logProjectFilterEl.value = projectParam;
     }
   } catch(e) {}
 
