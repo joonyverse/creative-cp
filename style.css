@@ -13,7 +13,10 @@
   --shadow: 0 2px 12px rgba(0,0,0,0.08);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+body, button, input, select, textarea, .stat-value {
+  font-family: 'Segoe UI', sans-serif;
+}
+body { background: var(--bg); color: var(--text); min-height: 100vh; }
 
 /* LOADING OVERLAY */
 .loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.92); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
@@ -132,6 +135,12 @@ body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--
 .stat-label { font-size: 12px; color: var(--text-light); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
 .stat-value { font-size: 28px; font-weight: 800; color: var(--text); }
 .stat-sub { font-size: 12px; color: var(--text-light); margin-top: 4px; }
+.stat-card.clickable { cursor: pointer; transition: all 0.15s ease; user-select: none; }
+.stat-card.clickable:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+.stat-card.clickable.active { outline: 2px solid var(--primary); box-shadow: 0 0 12px rgba(79, 70, 229, 0.2); }
+.stat-card.clickable.active.green { outline-color: var(--success); box-shadow: 0 0 12px rgba(16, 185, 129, 0.2); }
+.stat-card.clickable.active.orange { outline-color: var(--warning); box-shadow: 0 0 12px rgba(245, 158, 11, 0.2); }
+.stat-card.clickable.active.red { outline-color: var(--danger); box-shadow: 0 0 12px rgba(239, 68, 68, 0.2); }
 
 /* TABLE */
 .table-wrap { overflow-x: auto; border-radius: 12px; }

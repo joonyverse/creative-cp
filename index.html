@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Creative CP | 리소스 관리 플랫폼 (팀 공유)</title>
-  <link rel="stylesheet" href="style.css?v=4.0">
+  <link rel="stylesheet" href="style.css?v=4.1">
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>
 </head>
 <body>
@@ -64,6 +64,17 @@
     </div>
 
     <div class="grid-4 mb16" id="statCards"></div>
+
+    <!-- TREND CHART -->
+    <div class="card mb16">
+      <div class="card-title">
+        <span class="icon">📈</span> 최근 7일간 리소스 투입률 추이 그래프 (팀 평균 가동률)
+      </div>
+      <div class="chart-container" style="width: 100%; height: 180px; position: relative;">
+        <canvas id="trendChart" style="width:100%; height:100%; display:block;"></canvas>
+      </div>
+    </div>
+
     <div class="grid-2">
       <div class="card">
         <div class="card-title"><span class="icon">⚡</span> 여유 리소스 TOP 5 <span id="availListDateLabel" style="font-size:12px;font-weight:normal;color:var(--text-light);margin-left:4px;">(오늘)</span></div>
@@ -749,6 +760,19 @@
       <input type="text" id="nicknameInput" placeholder="예: 김민준" maxlength="20" style="font-size:15px;padding:12px;">
     </div>
     <button class="btn btn-primary" style="width:100%;padding:12px;" onclick="saveNickname()">시작하기 →</button>
+</div>
+</div>
+
+<!-- Unentered Members Modal -->
+<div class="modal-overlay" id="unenteredModal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-title">📅 업무 로그 미입력 팀원 목록</div>
+    <div id="unenteredMembersList" style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
+      <!-- Dynamically filled by showUnenteredMembersModal() -->
+    </div>
+    <div class="modal-actions" style="margin-top:0;">
+      <button class="btn btn-primary" style="width:100%;" onclick="closeModal('unenteredModal')">닫기</button>
+    </div>
   </div>
 </div>
 
@@ -756,6 +780,6 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=4.0" defer></script>
+<script src="app.js?v=4.1" defer></script>
 </body>
 </html>

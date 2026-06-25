@@ -69,6 +69,7 @@ let data = null;
 let autoRefreshTimer = null;
 let lastSyncTime = null;
 let dashboardDate = null;
+let dashboardTableFilter = 'all';
 
 let logViewMode = 'calendar';
 let calendarYear = new Date().getFullYear();
@@ -452,6 +453,43 @@ function showPage(name) {
 }
 
 // ===================== DASHBOARD =====================
+
+function setDashboardTableFilter(filterType) {
+  if (dashboardTableFilter === filterType) {
+    dashboardTableFilter = 'all';
+  } else {
+    dashboardTableFilter = filterType;
+  }
+  renderDashboard();
+}
+
+function showUnenteredMembersModal() {
+  const td = today();
+  const activeDate = dashboardDate || td;
+  const todayLogs = data.logs.filter(l => l.date === activeDate);
+  
+  const loadMap = {};
+  data.members.forEach(m => loadMap[m.id] = 0);
+  todayLogs.forEach(l => { loadMap[l.memberId] = (loadMap[l.memberId] || 0) + l.pct; });
+  
+  const unenteredMembers = data.members.filter(m => !loadMap[m.id]);
+  
+  const listEl = document.getElementById('unenteredMembersList');
+  if (listEl) {
+    if (unenteredMembers.length === 0) {
+      listEl.innerHTML = `<div style="text-align:center;padding:30px 10px;color:var(--text-light);font-size:13px;">✅ 모든 팀원이 업무 로그를 입력했습니다!</div>`;
+    } else {
+      listEl.innerHTML = unenteredMembers.map(m => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#f8f9ff;border-radius:10px;border:1px solid var(--border);">
+          <strong style="font-size:13px;color:var(--text);">${m.name}</strong>
+          <span style="font-size:11px;color:var(--text-light);background:#e0e7ff;color:var(--primary);padding:2px 8px;border-radius:4px;font-weight:700;">${m.spec || '직군 미지정'}</span>
+        </div>
+      `).join('');
+    }
+  }
+  openModal('unenteredModal');
+}
+
 function renderDashboard() {
   const td = today();
   const activeDate = dashboardDate || td;
@@ -484,9 +522,7 @@ function renderDashboard() {
   const overloadListDateLabelEl = document.getElementById('overloadListDateLabel');
   if (overloadListDateLabelEl) overloadListDateLabelEl.textContent = isToday ? '(오늘)' : `(${formatDate(activeDate)})`;
 
-  const todayTableTitleLabelEl = document.getElementById('todayTableTitleLabel');
-  if (todayTableTitleLabelEl) todayTableTitleLabelEl.textContent = isToday ? '오늘의 업무 현황' : `${formatDate(activeDate)} 업무 현황`;
-
+  // 통계 계산
   const loadMap = {};
   data.members.forEach(m => loadMap[m.id] = 0);
   todayLogs.forEach(l => { loadMap[l.memberId] = (loadMap[l.memberId] || 0) + l.pct; });
@@ -495,14 +531,36 @@ function renderDashboard() {
   const avgLoad = data.members.length ? Math.round(totalLoad / data.members.length) : 0;
   const freeCount = Object.values(loadMap).filter(v => v < 50).length;
   const overCount = Object.values(loadMap).filter(v => v > 100).length;
+  
+  // 미입력 멤버 통계
+  const unenteredMembers = data.members.filter(m => !loadMap[m.id]);
 
   const statCardsEl = document.getElementById('statCards');
   if (statCardsEl) {
     statCardsEl.innerHTML = `
-      <div class="stat-card"><div class="stat-label">전체 팀원</div><div class="stat-value">${data.members.length}명</div><div class="stat-sub">활성 프로젝트 ${data.projects.filter(p=>p.status==='진행중').length}개</div></div>
-      <div class="stat-card green"><div class="stat-label">평균 투입률 ${isToday ? '(오늘)' : '(조회일)'}</div><div class="stat-value">${avgLoad}%</div><div class="stat-sub">${isToday ? '오늘' : '조회일'} 등록 ${todayLogs.length}건</div></div>
-      <div class="stat-card orange"><div class="stat-label">여유 있는 팀원</div><div class="stat-value">${freeCount}명</div><div class="stat-sub">50% 미만 투입</div></div>
-      <div class="stat-card red"><div class="stat-label">과부하 팀원</div><div class="stat-value">${overCount}명</div><div class="stat-sub">100% 초과 투입</div></div>
+      <div class="stat-card clickable" onclick="showUnenteredMembersModal()">
+        <div class="stat-label">전체 팀원</div>
+        <div class="stat-value" style="display:flex;align-items:baseline;justify-content:space-between;">
+          <span>${data.members.length}명</span>
+          <span style="font-size:11px;font-weight:700;background:var(--danger);color:white;padding:2px 6px;border-radius:12px;">미입력 ${unenteredMembers.length}명</span>
+        </div>
+        <div class="stat-sub">활성 프로젝트 ${data.projects.filter(p=>p.status==='진행중').length}개</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">평균 투입률 ${isToday ? '(오늘)' : '(조회일)'}</div>
+        <div class="stat-value">${avgLoad}%</div>
+        <div class="stat-sub">${isToday ? '오늘' : '조회일'} 등록 ${todayLogs.length}건</div>
+      </div>
+      <div class="stat-card orange clickable ${dashboardTableFilter === 'free' ? 'active' : ''}" onclick="setDashboardTableFilter('free')">
+        <div class="stat-label">여유 있는 팀원</div>
+        <div class="stat-value">${freeCount}명</div>
+        <div class="stat-sub">50% 미만 투입 (클릭 시 필터)</div>
+      </div>
+      <div class="stat-card red clickable ${dashboardTableFilter === 'overload' ? 'active' : ''}" onclick="setDashboardTableFilter('overload')">
+        <div class="stat-label">과부하 팀원</div>
+        <div class="stat-value">${overCount}명</div>
+        <div class="stat-sub">100% 초과 투입 (클릭 시 필터)</div>
+      </div>
     `;
   }
 
@@ -548,9 +606,29 @@ function renderDashboard() {
     `;
   }
 
+  // 테이블 헤더 및 제목 업데이트 (필터 뱃지 추가)
+  const todayTableTitleLabelEl = document.getElementById('todayTableTitleLabel');
+  if (todayTableTitleLabelEl) {
+    let titleText = isToday ? '오늘의 업무 현황' : `${formatDate(activeDate)} 업무 현황`;
+    if (dashboardTableFilter === 'free') {
+      titleText += ` <span style="font-size:12px;font-weight:700;color:var(--success);background:#e6fbf3;padding:2px 8px;border-radius:4px;margin-left:6px;">🟢 여유 팀원 필터 적용 중</span>`;
+    } else if (dashboardTableFilter === 'overload') {
+      titleText += ` <span style="font-size:12px;font-weight:700;color:var(--danger);background:#fdf2f2;padding:2px 8px;border-radius:4px;margin-left:6px;">🔴 과부하 팀원 필터 적용 중</span>`;
+    }
+    todayTableTitleLabelEl.innerHTML = titleText;
+  }
+
+  // 테이블 필터링 적용
+  let filteredLogs = todayLogs;
+  if (dashboardTableFilter === 'free') {
+    filteredLogs = todayLogs.filter(l => loadMap[l.memberId] < 50);
+  } else if (dashboardTableFilter === 'overload') {
+    filteredLogs = todayLogs.filter(l => loadMap[l.memberId] > 100);
+  }
+
   const tbody = document.getElementById('todayTableBody');
   if (tbody) {
-    tbody.innerHTML = todayLogs.length ? todayLogs.map(l => {
+    tbody.innerHTML = filteredLogs.length ? filteredLogs.map(l => {
       const m = getMember(l.memberId);
       const p = getProject(l.projectId);
       return `<tr>
@@ -562,8 +640,146 @@ function renderDashboard() {
         <td style="color:var(--text-light);font-size:12px">${l.createdAt||''}</td>
         <td><span class="badge badge-purple">${l.registeredBy||'-'}</span></td>
       </tr>`;
-    }).join('') : `<tr><td colspan="7" class="empty-state">${isToday ? '오늘 등록된 업무가 없습니다. 업무를 등록해주세요!' : '해당 날짜에 등록된 업무가 없습니다.'}</td></tr>`;
+    }).join('') : `<tr><td colspan="7" class="empty-state">${isToday ? '등록된 업무가 없습니다.' : '해당 날짜에 등록된 업무가 없습니다.'}</td></tr>`;
   }
+
+  // 트렌드 차트 렌더링 호출
+  renderTrendChart(activeDate);
+}
+
+function renderTrendChart(activeDate) {
+  const canvas = document.getElementById('trendChart');
+  if (!canvas) return;
+
+  const dates = [];
+  const labels = [];
+  const values = [];
+  
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(activeDate);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    dates.push(dateStr);
+    
+    // 라벨: "MM/DD" 포맷
+    labels.push(`${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`);
+    
+    // 평균 가동률 계산
+    const logs = data.logs.filter(l => l.date === dateStr);
+    const loadMap = {};
+    data.members.forEach(m => loadMap[m.id] = 0);
+    logs.forEach(l => { loadMap[l.memberId] = (loadMap[l.memberId] || 0) + l.pct; });
+    const totalLoad = Object.values(loadMap).reduce((a,b) => a+b, 0);
+    const avgLoad = data.members.length ? Math.round(totalLoad / data.members.length) : 0;
+    values.push(avgLoad);
+  }
+
+  const ctx = canvas.getContext('2d');
+  
+  // 브라우저 크기 변경 대응 리사이즈 스케일링
+  const rect = canvas.parentNode.getBoundingClientRect();
+  const width = rect.width;
+  const height = rect.height;
+  const dpr = window.devicePixelRatio || 1;
+  
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  canvas.style.width = width + 'px';
+  canvas.style.height = height + 'px';
+  
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, width, height);
+
+  // 그래프 여백 설정
+  const paddingLeft = 40;
+  const paddingRight = 30;
+  const paddingTop = 30;
+  const paddingBottom = 30;
+  
+  const chartWidth = width - paddingLeft - paddingRight;
+  const chartHeight = height - paddingTop - paddingBottom;
+  
+  const maxVal = Math.max(120, ...values); // 최대 120% 기준으로 잡되 데이터가 크면 늘어남
+  
+  // Y축 가이드 라인 그리기 (0%, 50%, 100%)
+  const guides = [0, 50, 100];
+  ctx.strokeStyle = '#F3F4F6';
+  ctx.lineWidth = 1;
+  ctx.font = '10px 맑은 고딕, sans-serif';
+  ctx.fillStyle = '#9CA3AF';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  
+  guides.forEach(g => {
+    const y = paddingTop + chartHeight - (g / maxVal) * chartHeight;
+    ctx.beginPath();
+    ctx.moveTo(paddingLeft, y);
+    ctx.lineTo(width - paddingRight, y);
+    ctx.stroke();
+    
+    // 수치 텍스트
+    ctx.fillText(`${g}%`, paddingLeft - 8, y);
+  });
+
+  // 포인트 좌표 계산
+  const points = [];
+  const stepX = chartWidth / 6;
+  
+  for (let i = 0; i < 7; i++) {
+    const x = paddingLeft + i * stepX;
+    const y = paddingTop + chartHeight - (values[i] / maxVal) * chartHeight;
+    points.push({ x, y, val: values[i], label: labels[i] });
+  }
+
+  // 1. 그라데이션 영역 채우기 (Fill Area)
+  if (points.length > 0) {
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, paddingTop + chartHeight);
+    points.forEach(p => ctx.lineTo(p.x, p.y));
+    ctx.lineTo(points[points.length - 1].x, paddingTop + chartHeight);
+    ctx.closePath();
+    
+    const grad = ctx.createLinearGradient(0, paddingTop, 0, paddingTop + chartHeight);
+    grad.addColorStop(0, 'rgba(79, 70, 229, 0.25)'); // 연한 남색
+    grad.addColorStop(1, 'rgba(79, 70, 229, 0.00)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  // 2. 라인 그리기
+  ctx.beginPath();
+  points.forEach((p, idx) => {
+    if (idx === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  });
+  ctx.strokeStyle = '#4F46E5'; // Indigo 600
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // 3. 포인트 동그라미 및 수치/라벨 텍스트 그리기
+  points.forEach(p => {
+    // 동그라미 그리기
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
+    ctx.strokeStyle = '#4F46E5';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    
+    // 수치 텍스트 표시
+    ctx.font = 'bold 10px 맑은 고딕, sans-serif';
+    ctx.fillStyle = '#374151';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`${p.val}%`, p.x, p.y - 8);
+    
+    // 날짜 라벨 표시
+    ctx.font = '10px 맑은 고딕, sans-serif';
+    ctx.fillStyle = '#6B7280';
+    ctx.textBaseline = 'top';
+    ctx.fillText(p.label, p.x, paddingTop + chartHeight + 8);
+  });
 }
 
 function moveDashboardDate(dir) {
@@ -2413,6 +2629,11 @@ async function confirmDeleteMember() {
 }
 
 // ===================== MODALS =====================
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add('open');
+}
+
 function closeModal(id) { 
   const el = document.getElementById(id);
   if (el) el.classList.remove('open'); 
@@ -2652,6 +2873,22 @@ window.addEventListener('click', e => {
     if (!panel.contains(e.target) && e.target !== btn) {
       toggleRecallPanel(false);
     }
+  }
+});
+
+// Keyboard Navigation for Dashboard Date
+window.addEventListener('keydown', e => {
+  if (currentPage !== 'dashboard') return;
+  
+  const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+  if (['input', 'textarea', 'select'].includes(activeTag) || document.activeElement.isContentEditable) {
+    return;
+  }
+  
+  if (e.key === 'ArrowLeft') {
+    moveDashboardDate(-1);
+  } else if (e.key === 'ArrowRight') {
+    moveDashboardDate(1);
   }
 });
 
