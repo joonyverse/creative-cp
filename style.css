@@ -533,6 +533,7 @@ textarea { resize: vertical; min-height: 60px; }
   min-height: 200px;
   border-bottom: 2px solid var(--border);
   box-sizing: border-box;
+  padding-bottom: 24px; /* absolute 날짜 라벨 공간 확보 */
 }
 /* 트렌드 차트 래퍼 스크롤바 스타일 커스텀 */
 .trend-chart-wrapper::-webkit-scrollbar {
@@ -615,11 +616,15 @@ textarea { resize: vertical; min-height: 60px; }
 .trend-bar-fill.over { background: var(--danger); }
 
 .trend-bar-date {
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
   color: var(--text-light);
   text-align: center;
   white-space: nowrap;
+  position: absolute;
+  bottom: -22px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 .trend-bar-date.today {
   color: var(--danger);
