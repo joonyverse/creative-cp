@@ -2632,10 +2632,28 @@ function renderAnalytics() {
     donutChart.style.background = `conic-gradient(${gradientParts.join(', ')})`;
   }
   
+  // 범례 아이템을 시각적으로 활성화/비활성화 해주는 헬퍼 함수
+  function updateLegendHighlight(pid) {
+    if (!legendEl) return;
+    legendEl.querySelectorAll('.donut-legend-item').forEach(item => {
+      if (pid !== null && item.dataset.pid === pid) {
+        item.style.background = '#f1f5f9';
+        item.style.transform = 'translateX(4px)';
+      } else {
+        item.style.background = '';
+        item.style.transform = '';
+      }
+    });
+  }
+
   if (projectShares.length === 0) {
     if (donutChart) donutChart.style.background = 'conic-gradient(#eee 0% 100%)';
     if (legendEl) {
       legendEl.innerHTML = `<div style="text-align:center; color:var(--text-light); font-size:13px; padding:20px 0;">기간 내 투입 기록이 없습니다.</div>`;
+    }
+    if (donutChart) {
+      donutChart.onmousemove = null;
+      donutChart.onmouseleave = null;
     }
   } else {
     // 최초 차트 드로잉
@@ -2650,13 +2668,67 @@ function renderAnalytics() {
         </div>
       `).join('');
 
-      // 호버 이벤트 바인딩으로 조각 하이라이트
+      // 범례 호버 시 도넛 조각과 범례 리스트를 동시 하이라이트
       legendEl.querySelectorAll('.donut-legend-item').forEach(item => {
         const pid = item.dataset.pid;
-        item.addEventListener('mouseenter', () => drawDonut(pid));
-        item.addEventListener('mouseleave', () => drawDonut(null));
+        item.addEventListener('mouseenter', () => {
+          drawDonut(pid);
+          updateLegendHighlight(pid);
+        });
+        item.addEventListener('mouseleave', () => {
+          drawDonut(null);
+          updateLegendHighlight(null);
+        });
         item.addEventListener('click', () => viewProject(pid));
       });
+    }
+
+    // 도넛 차트 자체에 직접 마우스 호버 이벤트 설정 (각도 및 거리 계산)
+    if (donutChart) {
+      donutChart.onmousemove = function(e) {
+        const rect = donutChart.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        
+        const dx = e.clientX - cx;
+        const dy = e.clientY - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        // 도넛 링 범위(width 180px -> 반경 90px, 내경 62px 부근)
+        // 안전 마진을 고려하여 52px ~ 96px 영역만 마우스가 올라간 것으로 판별
+        if (dist < 52 || dist > 96) {
+          drawDonut(null);
+          updateLegendHighlight(null);
+          return;
+        }
+        
+        // 12시 방향을 0도로 변환 (Math.atan2는 3시 방향이 0도이므로 90도 가산 보정)
+        let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+        angle = angle + 90;
+        if (angle < 0) angle += 360;
+        
+        // 360도 기준 각도를 백분율(%)로 역산
+        const pct = (angle / 360) * 100;
+        let matchedPid = null;
+        let accPct = 0;
+        
+        for (const share of projectShares) {
+          const nextAcc = accPct + share.share;
+          if (pct >= accPct && pct < nextAcc) {
+            matchedPid = share.pid;
+            break;
+          }
+          accPct = nextAcc;
+        }
+        
+        drawDonut(matchedPid);
+        updateLegendHighlight(matchedPid);
+      };
+      
+      donutChart.onmouseleave = function() {
+        drawDonut(null);
+        updateLegendHighlight(null);
+      };
     }
   }
   
