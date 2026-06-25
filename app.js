@@ -83,8 +83,8 @@ async function loadFromShared() {
   }
   try {
     const [mRes, pRes, lRes] = await Promise.all([
-      supabaseClient.from('members').select('*'),
-      supabaseClient.from('projects').select('*'),
+      supabaseClient.from('members').select('*').order('sort_order', { ascending: true }),
+      supabaseClient.from('projects').select('*').order('sort_order', { ascending: true }),
       supabaseClient.from('logs').select('*')
     ]);
     
@@ -152,7 +152,7 @@ async function saveToShared(newData) {
     }
 
     // 4. Format objects to match database schemas
-    const formattedProjects = newData.projects.map(p => ({
+    const formattedProjects = newData.projects.map((p, idx) => ({
       id: p.id,
       name: p.name,
       desc: p.desc || '',
@@ -164,8 +164,17 @@ async function saveToShared(newData) {
       startDate: p.startDate || '',
       deadline: p.deadline || '',
       color: p.color || '#4361ee',
+      sort_order: idx,
       _lastModified: p._lastModified || '',
       _lastModifiedBy: p._lastModifiedBy || ''
+    }));
+
+    const formattedMembers = newData.members.map((m, idx) => ({
+      id: m.id,
+      name: m.name,
+      title: m.title,
+      spec: m.spec || '',
+      sort_order: idx
     }));
 
     const formattedLogs = newData.logs.map(l => ({
@@ -183,8 +192,8 @@ async function saveToShared(newData) {
 
     // 5. Execute upserts
     const upsertPromises = [];
-    if (newData.members.length > 0) {
-      upsertPromises.push(supabaseClient.from('members').upsert(newData.members));
+    if (formattedMembers.length > 0) {
+      upsertPromises.push(supabaseClient.from('members').upsert(formattedMembers));
     }
     if (formattedProjects.length > 0) {
       upsertPromises.push(supabaseClient.from('projects').upsert(formattedProjects));
@@ -1276,6 +1285,7 @@ function exportCalendarToExcel() {
 
 async function deleteLog(id) {
   if (!confirm('삭제할까요?')) return;
+  await reloadData();
   data.logs = data.logs.filter(l => l.id !== id);
   await save(); 
   renderLogs();
@@ -1801,7 +1811,7 @@ function getFilteredProjects() {
   const q = (document.getElementById('projSearch')?.value || '').trim().toLowerCase();
   const statusF = document.getElementById('projStatusFilter')?.value || '';
   const prioF = document.getElementById('projPriorityFilter')?.value || '';
-  const sort = document.getElementById('projSort')?.value || 'name';
+  const sort = document.getElementById('projSort')?.value || 'custom';
 
   let list = [...data.projects];
   if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || (p.desc||'').toLowerCase().includes(q));
@@ -1810,10 +1820,17 @@ function getFilteredProjects() {
 
   const prioOrder = { '높음': 0, '보통': 1, '낮음': 2 };
   const statusOrder = { '진행중': 0, '대기': 1, '일시중단': 2, '완료': 3 };
-  if (sort === 'name') list.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
-  else if (sort === 'priority') list.sort((a,b) => (prioOrder[a.priority]||1) - (prioOrder[b.priority]||1));
-  else if (sort === 'status') list.sort((a,b) => (statusOrder[a.status]||0) - (statusOrder[b.status]||0));
-  else if (sort === 'recent') list.sort((a,b) => (b._lastModified||'').localeCompare(a._lastModified||''));
+  if (sort === 'custom') {
+    // Keep raw array order (loaded from DB ordered by sort_order)
+  } else if (sort === 'name') {
+    list.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
+  } else if (sort === 'priority') {
+    list.sort((a,b) => (prioOrder[a.priority]||1) - (prioOrder[b.priority]||1));
+  } else if (sort === 'status') {
+    list.sort((a,b) => (statusOrder[a.status]||0) - (statusOrder[b.status]||0));
+  } else if (sort === 'recent') {
+    list.sort((a,b) => (b._lastModified||'').localeCompare(a._lastModified||''));
+  }
   return list;
 }
 
@@ -2435,10 +2452,19 @@ function selectColor(el) {
 
 // Project order move (up/down buttons)
 async function moveProject(id, dir) {
+  await reloadData();
   const idx = data.projects.findIndex(p => p.id === id);
   if (idx < 0) return;
   const newIdx = idx + dir;
   if (newIdx < 0 || newIdx >= data.projects.length) return;
+  
+  // Force UI sort option to custom
+  const sortSelect = document.getElementById('projSort');
+  if (sortSelect && sortSelect.value !== 'custom') {
+    sortSelect.value = 'custom';
+    showToast('🔄 사용자 정의 순서로 변경되었습니다');
+  }
+
   [data.projects[idx], data.projects[newIdx]] = [data.projects[newIdx], data.projects[idx]];
   await save();
   renderProjects();
@@ -2446,10 +2472,10 @@ async function moveProject(id, dir) {
 }
 
 // Project drag and drop
-let projDragSrcIdx = null;
+let projDragSrcId = null;
 
 function onProjDragStart(e) {
-  projDragSrcIdx = parseInt(e.currentTarget.dataset.idx);
+  projDragSrcId = e.currentTarget.dataset.id;
   e.currentTarget.classList.add('dragging');
   e.dataTransfer.effectAllowed = 'move';
 }
@@ -2459,7 +2485,7 @@ function onProjDragOver(e) {
   e.dataTransfer.dropEffect = 'move';
   const row = e.currentTarget;
   document.querySelectorAll('#projectTableBody tr').forEach(r => r.classList.remove('drag-over'));
-  if (parseInt(row.dataset.idx) !== projDragSrcIdx) row.classList.add('drag-over');
+  if (row.dataset.id !== projDragSrcId) row.classList.add('drag-over');
 }
 
 function onProjDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
@@ -2472,11 +2498,29 @@ function onProjDragEnd(e) {
 
 async function onProjDrop(e) {
   e.preventDefault();
-  const targetIdx = parseInt(e.currentTarget.dataset.idx);
-  if (projDragSrcIdx === null || projDragSrcIdx === targetIdx) return;
-  const moved = data.projects.splice(projDragSrcIdx, 1)[0];
+  const targetId = e.currentTarget.dataset.id;
+  if (!projDragSrcId || projDragSrcId === targetId) return;
+
+  await reloadData();
+
+  const srcIdx = data.projects.findIndex(p => p.id === projDragSrcId);
+  const targetIdx = data.projects.findIndex(p => p.id === targetId);
+
+  if (srcIdx < 0 || targetIdx < 0) {
+    projDragSrcId = null;
+    return;
+  }
+
+  // Force UI sort option to custom
+  const sortSelect = document.getElementById('projSort');
+  if (sortSelect && sortSelect.value !== 'custom') {
+    sortSelect.value = 'custom';
+    showToast('🔄 사용자 정의 순서로 변경되었습니다');
+  }
+
+  const moved = data.projects.splice(srcIdx, 1)[0];
   data.projects.splice(targetIdx, 0, moved);
-  projDragSrcIdx = null;
+  projDragSrcId = null;
   await save();
   renderProjects();
   renderDashboard();
@@ -2533,6 +2577,7 @@ function renderMembersPage() {
 
 // Member order move (up/down buttons)
 async function moveMember(id, dir) {
+  await reloadData();
   const idx = data.members.findIndex(m => m.id === id);
   if (idx < 0) return;
   const newIdx = idx + dir;
@@ -2544,10 +2589,10 @@ async function moveMember(id, dir) {
 }
 
 // Drag and drop state
-let memberDragSrcIdx = null;
+let memberDragSrcId = null;
 
 function onMemberDragStart(e) {
-  memberDragSrcIdx = parseInt(e.currentTarget.dataset.idx);
+  memberDragSrcId = e.currentTarget.dataset.id;
   e.currentTarget.classList.add('dragging');
   e.dataTransfer.effectAllowed = 'move';
 }
@@ -2557,7 +2602,7 @@ function onMemberDragOver(e) {
   e.dataTransfer.dropEffect = 'move';
   const row = e.currentTarget;
   document.querySelectorAll('#memberTableBody tr').forEach(r => r.classList.remove('drag-over'));
-  if (parseInt(row.dataset.idx) !== memberDragSrcIdx) row.classList.add('drag-over');
+  if (row.dataset.id !== memberDragSrcId) row.classList.add('drag-over');
 }
 
 function onMemberDragLeave(e) {
@@ -2572,11 +2617,22 @@ function onMemberDragEnd(e) {
 
 async function onMemberDrop(e) {
   e.preventDefault();
-  const targetIdx = parseInt(e.currentTarget.dataset.idx);
-  if (memberDragSrcIdx === null || memberDragSrcIdx === targetIdx) return;
-  const moved = data.members.splice(memberDragSrcIdx, 1)[0];
+  const targetId = e.currentTarget.dataset.id;
+  if (!memberDragSrcId || memberDragSrcId === targetId) return;
+
+  await reloadData();
+
+  const srcIdx = data.members.findIndex(m => m.id === memberDragSrcId);
+  const targetIdx = data.members.findIndex(m => m.id === targetId);
+
+  if (srcIdx < 0 || targetIdx < 0) {
+    memberDragSrcId = null;
+    return;
+  }
+
+  const moved = data.members.splice(srcIdx, 1)[0];
   data.members.splice(targetIdx, 0, moved);
-  memberDragSrcIdx = null;
+  memberDragSrcId = null;
   await save();
   renderMembersPage();
   renderDashboard();
@@ -3488,3 +3544,15 @@ async function init() {
 }
 
 init();
+
+// Window resize listener to redraw trend chart on dashboard
+let resizeTimeout = null;
+window.addEventListener('resize', () => {
+  if (currentPage === 'dashboard') {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+      renderDashboard();
+    }, 250);
+  }
+});
+
