@@ -579,6 +579,120 @@ function pctBadge(p) {
 }
 
 // ===================== LOGS =====================
+const LOG_PERIOD_LABELS = {
+  today: '오늘',
+  week: '최근 1주일',
+  month: '최근 1개월',
+  all: '전체 기간'
+};
+
+function getFilteredLogs() {
+  const periodVal = document.getElementById('logPeriodFilter').value;
+  const dateVal = document.getElementById('logDateFilter').value;
+  const memVal = document.getElementById('logMemberFilter').value;
+  const projVal = document.getElementById('logProjectFilter').value;
+
+  let logs = [...data.logs];
+
+  if (dateVal) {
+    logs = logs.filter(l => l.date === dateVal);
+  } else if (periodVal && periodVal !== 'all') {
+    const td = new Date();
+    const todayStr = today();
+    if (periodVal === 'today') {
+      logs = logs.filter(l => l.date === todayStr);
+    } else if (periodVal === 'week') {
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(td.getDate() - 7);
+      const limitStr = oneWeekAgo.toISOString().split('T')[0];
+      logs = logs.filter(l => l.date >= limitStr && l.date <= todayStr);
+    } else if (periodVal === 'month') {
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(td.getMonth() - 1);
+      const limitStr = oneMonthAgo.toISOString().split('T')[0];
+      logs = logs.filter(l => l.date >= limitStr && l.date <= todayStr);
+    }
+  }
+
+  if (memVal) logs = logs.filter(l => l.memberId === memVal);
+  if (projVal) logs = logs.filter(l => l.projectId === projVal);
+
+  return logs;
+}
+
+function getCalendarMonthLogCount() {
+  const memVal = document.getElementById('logMemberFilter').value;
+  const projVal = document.getElementById('logProjectFilter').value;
+  const pad = n => String(n).padStart(2, '0');
+  const monthPrefix = `${calendarYear}-${pad(calendarMonth)}`;
+
+  let logs = data.logs.filter(l => l.date.startsWith(monthPrefix));
+  if (memVal) logs = logs.filter(l => l.memberId === memVal);
+  if (projVal) logs = logs.filter(l => l.projectId === projVal);
+  return logs.length;
+}
+
+function updateLogFilterUI(filteredCount) {
+  const countEl = document.getElementById('logFilterResultCount');
+  if (countEl) {
+    const suffix = logViewMode === 'calendar' ? ' (이번 달)' : '';
+    countEl.textContent = `${filteredCount}건 조회됨${suffix}`;
+  }
+
+  const bar = document.getElementById('logActiveFiltersBar');
+  const chips = document.getElementById('logActiveFilters');
+  if (!bar || !chips) return;
+
+  const periodVal = document.getElementById('logPeriodFilter').value;
+  const dateVal = document.getElementById('logDateFilter').value;
+  const memVal = document.getElementById('logMemberFilter').value;
+  const projVal = document.getElementById('logProjectFilter').value;
+
+  const active = [];
+  const showPeriod = logViewMode !== 'calendar';
+
+  if (showPeriod) {
+    if (dateVal) {
+      active.push({ key: 'date', label: `📅 ${formatDate(dateVal)}` });
+    } else if (periodVal && periodVal !== 'today') {
+      active.push({ key: 'period', label: `📅 ${LOG_PERIOD_LABELS[periodVal] || periodVal}` });
+    }
+  }
+  if (memVal) {
+    const m = getMember(memVal);
+    active.push({ key: 'member', label: `👤 ${m?.name || '팀원'}` });
+  }
+  if (projVal) {
+    const p = getProject(projVal);
+    active.push({ key: 'project', label: `🚀 ${p?.name || '프로젝트'}` });
+  }
+
+  if (active.length === 0) {
+    bar.hidden = true;
+    chips.innerHTML = '';
+    return;
+  }
+
+  bar.hidden = false;
+  chips.innerHTML = active.map(a =>
+    `<span class="filter-chip">${a.label}<button type="button" class="filter-chip-remove" onclick="clearLogFilter('${a.key}')" aria-label="필터 제거">×</button></span>`
+  ).join('');
+}
+
+function clearLogFilter(key) {
+  if (key === 'date') {
+    document.getElementById('logDateFilter').value = '';
+    document.getElementById('logPeriodFilter').value = 'today';
+  } else if (key === 'period') {
+    document.getElementById('logPeriodFilter').value = 'today';
+  } else if (key === 'member') {
+    document.getElementById('logMemberFilter').value = '';
+  } else if (key === 'project') {
+    document.getElementById('logProjectFilter').value = '';
+  }
+  renderLogs();
+}
+
 function renderLogs() {
   // Sync filters to URL params
   const memValFilter = document.getElementById('logMemberFilter')?.value || '';
@@ -602,6 +716,7 @@ function renderLogs() {
   const tableWrap = document.getElementById('logTableWrap');
   const calendarWrap = document.getElementById('logCalendarWrap');
   const periodFilterGroup = document.getElementById('logPeriodFilterGroup');
+  const periodDivider = document.getElementById('logPeriodDivider');
   const btnTable = document.getElementById('btnLogViewTable');
   const btnCalendar = document.getElementById('btnLogViewCalendar');
   
@@ -609,6 +724,7 @@ function renderLogs() {
     if (tableWrap) tableWrap.style.display = 'none';
     if (calendarWrap) calendarWrap.style.display = 'block';
     if (periodFilterGroup) periodFilterGroup.style.display = 'none';
+    if (periodDivider) periodDivider.style.display = 'none';
     if (btnTable) {
       btnTable.className = 'btn btn-sm';
       btnTable.style.background = '#f0f4ff';
@@ -621,12 +737,14 @@ function renderLogs() {
       btnCalendar.style.color = '';
       btnCalendar.style.border = '';
     }
+    updateLogFilterUI(getCalendarMonthLogCount());
     renderCalendar();
     return;
   } else {
     if (tableWrap) tableWrap.style.display = '';
     if (calendarWrap) calendarWrap.style.display = 'none';
     if (periodFilterGroup) periodFilterGroup.style.display = 'flex';
+    if (periodDivider) periodDivider.style.display = '';
     if (btnTable) {
       btnTable.className = 'btn btn-sm btn-primary';
       btnTable.style.background = '';
@@ -641,39 +759,9 @@ function renderLogs() {
     }
   }
 
-  const periodVal = document.getElementById('logPeriodFilter').value;
-  const dateVal = document.getElementById('logDateFilter').value;
-  const memVal = document.getElementById('logMemberFilter').value;
-  const projVal = document.getElementById('logProjectFilter').value;
+  const logs = getFilteredLogs().sort((a,b) => (b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
 
-  let logs = [...data.logs];
-
-  // 1. Period and specific date filtering
-  if (dateVal) {
-    logs = logs.filter(l => l.date === dateVal);
-  } else if (periodVal && periodVal !== 'all') {
-    const td = new Date();
-    const todayStr = today();
-    if (periodVal === 'today') {
-      logs = logs.filter(l => l.date === todayStr);
-    } else if (periodVal === 'week') {
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(td.getDate() - 7);
-      const limitStr = oneWeekAgo.toISOString().split('T')[0];
-      logs = logs.filter(l => l.date >= limitStr && l.date <= todayStr);
-    } else if (periodVal === 'month') {
-      const oneMonthAgo = new Date();
-      oneMonthAgo.setMonth(td.getMonth() - 1);
-      const limitStr = oneMonthAgo.toISOString().split('T')[0];
-      logs = logs.filter(l => l.date >= limitStr && l.date <= todayStr);
-    }
-  }
-
-  // 2. Member and project filtering
-  if (memVal) logs = logs.filter(l => l.memberId === memVal);
-  if (projVal) logs = logs.filter(l => l.projectId === projVal);
-
-  logs.sort((a,b) => (b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
+  updateLogFilterUI(logs.length);
 
   const tbody = document.getElementById('logsTableBody');
   if (tbody) {
@@ -737,38 +825,7 @@ function resetLogsFilters() {
 
 
 function downloadLogsCSV() {
-  const periodVal = document.getElementById('logPeriodFilter').value;
-  const dateVal = document.getElementById('logDateFilter').value;
-  const memVal = document.getElementById('logMemberFilter').value;
-  const projVal = document.getElementById('logProjectFilter').value;
-
-  let logs = [...data.logs];
-
-  // Apply filters identically to renderLogs
-  if (dateVal) {
-    logs = logs.filter(l => l.date === dateVal);
-  } else if (periodVal && periodVal !== 'all') {
-    const td = new Date();
-    const todayStr = today();
-    if (periodVal === 'today') {
-      logs = logs.filter(l => l.date === todayStr);
-    } else if (periodVal === 'week') {
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(td.getDate() - 7);
-      const limitStr = oneWeekAgo.toISOString().split('T')[0];
-      logs = logs.filter(l => l.date >= limitStr && l.date <= todayStr);
-    } else if (periodVal === 'month') {
-      const oneMonthAgo = new Date();
-      oneMonthAgo.setMonth(td.getMonth() - 1);
-      const limitStr = oneMonthAgo.toISOString().split('T')[0];
-      logs = logs.filter(l => l.date >= limitStr && l.date <= todayStr);
-    }
-  }
-
-  if (memVal) logs = logs.filter(l => l.memberId === memVal);
-  if (projVal) logs = logs.filter(l => l.projectId === projVal);
-
-  logs.sort((a,b) => (b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
+  const logs = getFilteredLogs().sort((a,b) => (b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
 
   // CSV generation with UTF-8 BOM to prevent Excel encoding issues
   let csvContent = '\uFEFF';
@@ -998,6 +1055,9 @@ function renderCalendar() {
   
   // Trigger Agenda Update
   updateAgendaPanel();
+  if (logViewMode === 'calendar') {
+    updateLogFilterUI(getCalendarMonthLogCount());
+  }
 }
 
 function selectCalendarDate(dateStr) {
@@ -1272,8 +1332,8 @@ function renderProjects() {
             <span class="badge ${priBadge}">${p.priority}</span>
           </div>
           <div class="proj-card-actions" onclick="event.stopPropagation()">
-            <button class="btn btn-sm btn-primary" onclick="editProject('${p.id}')">✏️</button>
-            <button class="btn btn-sm btn-danger" onclick="confirmDeleteProject('${p.id}')">🗑️</button>
+            <button class="btn-action btn-action-primary" onclick="editProject('${p.id}')" title="수정">✏️</button>
+            <button class="btn-action btn-action-danger" onclick="confirmDeleteProject('${p.id}')" title="삭제">🗑️</button>
           </div>
         </div>
         <div class="proj-card-title">${p.name}</div>
@@ -1315,7 +1375,13 @@ function renderProjects() {
           <span class="drag-handle" title="드래그하여 순서 변경">⠿</span>
         </td>
         <td style="color:var(--text-light);font-size:12px;text-align:center;font-weight:700">${realIdx+1}</td>
-        <td><strong style="cursor:pointer;color:var(--primary)" onclick="viewProject('${p.id}')">${p.name}</strong>${p.desc?`<div style="font-size:11px;color:var(--text-light);margin-top:2px">${p.desc.substring(0,40)}${p.desc.length>40?'…':''}</div>`:''}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="project-color-dot" style="background:${p.color || '#4361ee'}" title="프로젝트 색상"></span>
+            <strong style="cursor:pointer;color:var(--primary)" onclick="viewProject('${p.id}')">${p.name}</strong>
+          </div>
+          ${p.desc?`<div style="font-size:11px;color:var(--text-light);margin-top:2px;padding-left:16px;">${p.desc.substring(0,40)}${p.desc.length>40?'…':''}</div>`:''}
+        </td>
         <td><span class="badge ${statusBadge}">${p.status}</span></td>
         <td><span class="badge ${priBadge}">${p.priority}</span></td>
         <td>${pd?`<span class="role-pd">PD</span> ${pd.name}`:'-'}</td>
@@ -1329,9 +1395,9 @@ function renderProjects() {
               <button class="order-btn" onclick="moveProject('${p.id}',-1)" ${isFirst?'disabled':''} title="위로">▲</button>
               <button class="order-btn" onclick="moveProject('${p.id}',1)" ${isLast?'disabled':''} title="아래로">▼</button>
             </div>
-            <button class="btn btn-sm" style="background:#f0f4ff;color:var(--primary)" onclick="viewProject('${p.id}')">👁</button>
-            <button class="btn btn-sm btn-primary" onclick="editProject('${p.id}')">✏️</button>
-            <button class="btn btn-sm btn-danger" onclick="confirmDeleteProject('${p.id}')">🗑️</button>
+            <button class="btn-action btn-action-secondary" onclick="viewProject('${p.id}')" title="상세보기">🔍</button>
+            <button class="btn-action btn-action-primary" onclick="editProject('${p.id}')" title="수정">✏️</button>
+            <button class="btn-action btn-action-danger" onclick="confirmDeleteProject('${p.id}')" title="삭제">🗑️</button>
           </div>
         </td>
       </tr>`;
@@ -1916,13 +1982,14 @@ function renderMembersPage() {
         <td>${pctBadge(load)}</td>
         <td><span style="color:${free>50?'var(--success)':free>20?'var(--warning)':'var(--danger)'}; font-weight:700">${free}%</span></td>
         <td>
-          <div style="display:flex;align-items:center;gap:6px">
+          <div style="display:flex;align-items:center;gap:4px;">
             <div class="order-btns">
               <button class="order-btn" onclick="moveMember('${m.id}',-1)" ${isFirst?'disabled':''} title="위로">▲</button>
               <button class="order-btn" onclick="moveMember('${m.id}',1)" ${isLast?'disabled':''} title="아래로">▼</button>
             </div>
-            <button class="btn btn-sm btn-primary" onclick="editMember('${m.id}')">수정</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteMember('${m.id}')">삭제</button>
+            <button class="btn-action btn-action-secondary" onclick="viewMember('${m.id}')" title="상세보기">🔍</button>
+            <button class="btn-action btn-action-primary" onclick="editMember('${m.id}')" title="수정">✏️</button>
+            <button class="btn-action btn-action-danger" onclick="deleteMember('${m.id}')" title="삭제">🗑️</button>
           </div>
         </td>
       </tr>`;
@@ -2045,9 +2112,9 @@ function populateSelects() {
   const logProjectEl = document.getElementById('logProject');
   if (logProjectEl) logProjectEl.innerHTML = '<option value="">선택...</option>' + projOpts;
   const logMemberFilterEl = document.getElementById('logMemberFilter');
-  if (logMemberFilterEl) logMemberFilterEl.innerHTML = '<option value="">전체</option>' + memberOpts;
+  if (logMemberFilterEl) logMemberFilterEl.innerHTML = '<option value="">전체 팀원</option>' + memberOpts;
   const logProjectFilterEl = document.getElementById('logProjectFilter');
-  if (logProjectFilterEl) logProjectFilterEl.innerHTML = '<option value="">전체</option>' + projOpts;
+  if (logProjectFilterEl) logProjectFilterEl.innerHTML = '<option value="">전체 프로젝트</option>' + projOpts;
 
   const wrap = document.getElementById('projMembersCheck');
   if (wrap) {
@@ -2223,6 +2290,8 @@ function openMemberModal() {
   document.getElementById('memName').value = '';
   document.getElementById('memTitle').value = '선임';
   document.getElementById('memSpec').value = '';
+  const titleEl = document.getElementById('memberModalTitle');
+  if (titleEl) titleEl.textContent = '👤 팀원 추가';
   const memberModalEl = document.getElementById('memberModal');
   if (memberModalEl) memberModalEl.classList.add('open');
 }
@@ -2234,6 +2303,8 @@ function editMember(id) {
   document.getElementById('memName').value = m.name;
   document.getElementById('memTitle').value = m.title;
   document.getElementById('memSpec').value = m.spec;
+  const titleEl = document.getElementById('memberModalTitle');
+  if (titleEl) titleEl.textContent = '✏️ 팀원 수정';
   const memberModalEl = document.getElementById('memberModal');
   if (memberModalEl) memberModalEl.classList.add('open');
 }
