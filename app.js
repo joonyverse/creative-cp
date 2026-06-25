@@ -1559,6 +1559,17 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
   });
 });
 
+// Close recall panel on click outside
+window.addEventListener('click', e => {
+  const panel = document.getElementById('logRecallPanel');
+  const btn = document.getElementById('btnRecallLast');
+  if (panel && panel.style.display === 'block') {
+    if (!panel.contains(e.target) && e.target !== btn) {
+      toggleRecallPanel(false);
+    }
+  }
+});
+
 // ===================== INIT =====================
 async function init() {
   dashboardDate = today();

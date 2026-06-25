@@ -224,14 +224,73 @@ textarea { resize: vertical; min-height: 60px; }
 .member-chart-bar-fill.over { background: var(--danger); }
 .member-chart-date { font-size: 11px; color: var(--text-light); }
 
-/* RECALL PANEL AND ITEMS */
-.recall-panel { background: #f8f9ff; border: 1.5px solid #c7d2fe; border-radius: 12px; padding: 14px; margin-bottom: 14px; max-height: 195px; overflow-y: auto; }
-.recall-panel-header { font-size: 11px; font-weight: 700; color: var(--primary); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase; letter-spacing: 0.5px; }
-.recall-panel-close { cursor: pointer; color: var(--text-light); font-weight: 800; transition: color 0.15s; }
-.recall-panel-close:hover { color: var(--danger); }
-.recall-list-group { display: flex; flex-direction: column; gap: 6px; }
-.recall-item { cursor: pointer; padding: 8px 12px; background: white; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; transition: all 0.15s; display: flex; justify-content: space-between; align-items: center; text-align: left; }
-.recall-item:hover { border-color: var(--primary); background: #f0f4ff; transform: translateY(-1px); box-shadow: 0 2px 6px rgba(67, 97, 238, 0.08); }
+/* 플로팅 최근 업무 드롭다운 */
+.recall-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 320px;
+  background: white;
+  border: 1.5px solid var(--primary);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  z-index: 200;
+  padding: 14px;
+  animation: fadeIn 0.18s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.recall-dropdown-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+.recall-dropdown-close {
+  cursor: pointer;
+  color: var(--text-light);
+  font-weight: 800;
+  transition: color 0.12s;
+}
+.recall-dropdown-close:hover {
+  color: var(--danger);
+}
+.recall-dropdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-top: 4px;
+}
+.recall-item {
+  cursor: pointer;
+  padding: 8px 10px;
+  background: #f8f9ff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  transition: all 0.12s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+}
+.recall-item:hover {
+  border-color: var(--primary);
+  background: #f0f4ff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(67, 97, 238, 0.08);
+}
 
 @media (max-width: 768px) {
   .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
