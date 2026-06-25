@@ -2560,7 +2560,7 @@ function renderAnalytics() {
   
   Object.entries(projectLoadSums).forEach(([pid, loadSum], idx) => {
     const proj = getProject(pid);
-    const pctShare = totalLogsLoad > 0 ? Math.round((loadSum / totalLogsLoad) * 100) : 0;
+    const pctShare = totalLogsLoad > 0 ? (loadSum / totalLogsLoad) * 100 : 0;
     
     // 원래 지정된 프로젝트 색상 불러오기
     const baseColor = proj ? (proj.color || cardColors[idx % cardColors.length]) : '#94a3b8';
@@ -2596,7 +2596,10 @@ function renderAnalytics() {
     const hasMultiple = projectShares.length > 1;
 
     projectShares.forEach((share, sIdx) => {
-      const nextPct = currentPct + share.share;
+      let nextPct = currentPct + share.share;
+      if (sIdx === projectShares.length - 1) {
+        nextPct = 100;
+      }
       
       // 호버된 아이템이 있을 때, 다른 조각들은 비활성화 색상(#e2e8f0)으로 처리
       let drawColor = share.color;
@@ -2664,7 +2667,7 @@ function renderAnalytics() {
         <div class="donut-legend-item" data-pid="${share.pid}" title="프로젝트 상세 보기">
           <div class="donut-legend-color" style="background: ${share.color}"></div>
           <span class="donut-legend-name">${share.name}</span>
-          <span class="donut-legend-val">${share.share}% (${share.rawLoad}%)</span>
+          <span class="donut-legend-val">${Math.round(share.share)}% (${share.rawLoad}%)</span>
         </div>
       `).join('');
 
