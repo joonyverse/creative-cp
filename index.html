@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Creative CP | 리소스 관리 플랫폼 (팀 공유)</title>
-  <link rel="stylesheet" href="style.css?v=4.1">
+  <link rel="stylesheet" href="style.css?v=4.2">
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>
 </head>
 <body>
@@ -67,8 +67,18 @@
 
     <!-- TREND CHART -->
     <div class="card mb16">
-      <div class="card-title">
+      <div class="card-title" style="display:flex;align-items:center;gap:6px;">
         <span class="icon">📈</span> 최근 7일간 리소스 투입률 추이 그래프 (팀 평균 가동률)
+        <div class="tooltip-container">
+          <span class="info-help-icon">❓</span>
+          <div class="tooltip-text">
+            <strong>팀 평균 가동률 계산 방식</strong>
+            1. 조회일에 등록된 모든 팀원의 개인별 총 투입률(%) 합계를 계산합니다.<br>
+            (업무 로그 미등록 팀원은 0%로 간주)<br>
+            2. 계산된 전체 팀원의 투입률 합계를 활성 팀원 수로 나눈 뒤, 소수점 첫째 자리에서 반올림합니다.<br>
+            <span style="font-size:10px;color:#c7d2fe;display:block;margin-top:4px;">식: Σ(당일 팀원별 투입률) / 활성 팀원 수</span>
+          </div>
+        </div>
       </div>
       <div class="chart-container" style="width: 100%; height: 180px; position: relative;">
         <canvas id="trendChart" style="width:100%; height:100%; display:block;"></canvas>
@@ -780,6 +790,6 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=4.1" defer></script>
+<script src="app.js?v=4.2" defer></script>
 </body>
 </html>
