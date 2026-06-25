@@ -17,6 +17,8 @@ if (typeof supabase !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
     const memberParam = params.get('member');
+    const viewParam = params.get('view');
+    const monthParam = params.get('month');
     
     if (tabParam && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics'].includes(tabParam)) {
       startPage = tabParam;
@@ -29,6 +31,12 @@ if (typeof supabase !== 'undefined') {
     
     if (memberParam) {
       window.__urlSelectedMemberId = memberParam;
+    }
+    if (viewParam && ['table', 'calendar'].includes(viewParam)) {
+      window.__urlLogViewMode = viewParam;
+    }
+    if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+      window.__urlCalendarMonthStr = monthParam;
     }
   } catch(e) {}
   
@@ -57,6 +65,10 @@ let data = null;
 let autoRefreshTimer = null;
 let lastSyncTime = null;
 let dashboardDate = null;
+
+let logViewMode = 'table';
+let calendarYear = new Date().getFullYear();
+let calendarMonth = new Date().getMonth() + 1;
 
 async function loadFromShared() {
   if (!supabaseClient) {
@@ -382,6 +394,11 @@ function showPage(name) {
     const url = new URL(window.location.href);
     url.searchParams.set('tab', name);
     
+    // Clear other params by default, except when matching the tab
+    url.searchParams.delete('member');
+    url.searchParams.delete('view');
+    url.searchParams.delete('month');
+    
     if (name === 'analytics') {
       const memberSelect = document.getElementById('analyticsMember');
       let mId = memberSelect?.value;
@@ -394,8 +411,12 @@ function showPage(name) {
       if (mId) {
         url.searchParams.set('member', mId);
       }
-    } else {
-      url.searchParams.delete('member');
+    } else if (name === 'logs') {
+      url.searchParams.set('view', logViewMode);
+      if (logViewMode === 'calendar') {
+        const mStr = `${calendarYear}-${String(calendarMonth).padStart(2, '0')}`;
+        url.searchParams.set('month', mStr);
+      }
     }
     window.history.replaceState(null, '', url.pathname + url.search);
   } catch(e) {}
@@ -552,6 +573,49 @@ function pctBadge(p) {
 
 // ===================== LOGS =====================
 function renderLogs() {
+  // Sync view containers display
+  const tableWrap = document.getElementById('logTableWrap');
+  const calendarWrap = document.getElementById('logCalendarWrap');
+  const periodFilterGroup = document.getElementById('logPeriodFilterGroup');
+  const btnTable = document.getElementById('btnLogViewTable');
+  const btnCalendar = document.getElementById('btnLogViewCalendar');
+  
+  if (logViewMode === 'calendar') {
+    if (tableWrap) tableWrap.style.display = 'none';
+    if (calendarWrap) calendarWrap.style.display = 'block';
+    if (periodFilterGroup) periodFilterGroup.style.display = 'none';
+    if (btnTable) {
+      btnTable.className = 'btn btn-sm';
+      btnTable.style.background = '#f0f4ff';
+      btnTable.style.color = 'var(--primary)';
+      btnTable.style.border = '1px solid #c7d2fe';
+    }
+    if (btnCalendar) {
+      btnCalendar.className = 'btn btn-sm btn-primary';
+      btnCalendar.style.background = '';
+      btnCalendar.style.color = '';
+      btnCalendar.style.border = '';
+    }
+    renderCalendar();
+    return;
+  } else {
+    if (tableWrap) tableWrap.style.display = '';
+    if (calendarWrap) calendarWrap.style.display = 'none';
+    if (periodFilterGroup) periodFilterGroup.style.display = 'flex';
+    if (btnTable) {
+      btnTable.className = 'btn btn-sm btn-primary';
+      btnTable.style.background = '';
+      btnTable.style.color = '';
+      btnTable.style.border = '';
+    }
+    if (btnCalendar) {
+      btnCalendar.className = 'btn btn-sm';
+      btnCalendar.style.background = '#f0f4ff';
+      btnCalendar.style.color = 'var(--primary)';
+      btnCalendar.style.border = '1px solid #c7d2fe';
+    }
+  }
+
   const periodVal = document.getElementById('logPeriodFilter').value;
   const dateVal = document.getElementById('logDateFilter').value;
   const memVal = document.getElementById('logMemberFilter').value;
@@ -689,11 +753,245 @@ function downloadLogsCSV() {
   showToast('📥 CSV 다운로드가 완료되었습니다');
 }
 
-function deleteLog(id) {
+async function deleteLog(id) {
   if (!confirm('삭제할까요?')) return;
   data.logs = data.logs.filter(l => l.id !== id);
-  save(); renderLogs();
+  await save(); 
+  renderLogs();
   showToast('삭제되었습니다');
+  
+  // If the day logs details modal is open, refresh it as well
+  const modal = document.getElementById('dayLogsModal');
+  if (modal && modal.classList.contains('open') && window.__activeDayLogsDate) {
+    showDayLogs(window.__activeDayLogsDate);
+  }
+}
+
+function setLogView(mode) {
+  logViewMode = mode;
+  try {
+    localStorage.setItem('creative_cp_log_view_mode', mode);
+  } catch(e) {}
+  
+  // Update URL
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', mode);
+    if (mode === 'calendar') {
+      const mStr = `${calendarYear}-${String(calendarMonth).padStart(2, '0')}`;
+      url.searchParams.set('month', mStr);
+    } else {
+      url.searchParams.delete('month');
+    }
+    window.history.replaceState(null, '', url.pathname + url.search);
+  } catch(e) {}
+  
+  renderLogs();
+}
+
+function moveCalendarMonth(dir) {
+  let m = calendarMonth + dir;
+  let y = calendarYear;
+  if (m < 1) {
+    m = 12;
+    y -= 1;
+  } else if (m > 12) {
+    m = 1;
+    y += 1;
+  }
+  calendarMonth = m;
+  calendarYear = y;
+  
+  // Sync to URL
+  try {
+    const url = new URL(window.location.href);
+    const mStr = `${calendarYear}-${String(calendarMonth).padStart(2, '0')}`;
+    url.searchParams.set('month', mStr);
+    window.history.replaceState(null, '', url.pathname + url.search);
+  } catch(e) {}
+  
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const container = document.getElementById('calendarGridBody');
+  if (!container) return;
+  
+  // Set month title
+  const titleEl = document.getElementById('calendarMonthTitle');
+  if (titleEl) {
+    titleEl.textContent = `${calendarYear}년 ${calendarMonth}월`;
+  }
+  
+  container.innerHTML = '';
+  
+  const firstDayIdx = new Date(calendarYear, calendarMonth - 1, 1).getDay();
+  const lastDate = new Date(calendarYear, calendarMonth, 0).getDate();
+  const prevLastDate = new Date(calendarYear, calendarMonth - 1, 0).getDate();
+  
+  const cells = [];
+  const pad = n => String(n).padStart(2, '0');
+  
+  // Previous month's overlap
+  for (let i = firstDayIdx - 1; i >= 0; i--) {
+    const d = prevLastDate - i;
+    let pm = calendarMonth - 1;
+    let py = calendarYear;
+    if (pm < 1) { pm = 12; py -= 1; }
+    cells.push({
+      dayNum: d,
+      dateStr: `${py}-${pad(pm)}-${pad(d)}`,
+      isOutside: true,
+      dayOfWeek: cells.length % 7
+    });
+  }
+  
+  // Current month
+  for (let d = 1; d <= lastDate; d++) {
+    cells.push({
+      dayNum: d,
+      dateStr: `${calendarYear}-${pad(calendarMonth)}-${pad(d)}`,
+      isOutside: false,
+      dayOfWeek: cells.length % 7
+    });
+  }
+  
+  // Next month's overlap
+  let nextDayNum = 1;
+  while (cells.length < 42) {
+    let nm = calendarMonth + 1;
+    let ny = calendarYear;
+    if (nm > 12) { nm = 1; ny += 1; }
+    
+    const cellDate = nextDayNum;
+    nextDayNum++;
+    cells.push({
+      dayNum: cellDate,
+      dateStr: `${ny}-${pad(nm)}-${pad(cellDate)}`,
+      isOutside: true,
+      dayOfWeek: cells.length % 7
+    });
+  }
+  
+  // Filters
+  const memVal = document.getElementById('logMemberFilter').value;
+  const projVal = document.getElementById('logProjectFilter').value;
+  
+  const todayStr = today();
+  
+  cells.forEach(cell => {
+    // Filter cell logs
+    let cellLogs = data.logs.filter(l => l.date === cell.dateStr);
+    if (memVal) cellLogs = cellLogs.filter(l => l.memberId === memVal);
+    if (projVal) cellLogs = cellLogs.filter(l => l.projectId === projVal);
+    
+    // Sort cell logs by loading percentage descending
+    cellLogs.sort((a,b) => b.pct - a.pct);
+    
+    const isToday = (cell.dateStr === todayStr);
+    
+    // Classes
+    let cellCls = 'calendar-cell';
+    if (cell.isOutside) cellCls += ' cell-outside';
+    if (isToday) cellCls += ' cell-today';
+    
+    if (cell.dayOfWeek === 0) cellCls += ' sun';
+    else if (cell.dayOfWeek === 6) cellCls += ' sat';
+    
+    const maxVisible = 3;
+    const visibleLogs = cellLogs.slice(0, maxVisible);
+    const moreCount = cellLogs.length - maxVisible;
+    
+    let eventsHtml = '';
+    if (cellLogs.length > 0) {
+      eventsHtml = `<div class="cal-events-list">`;
+      eventsHtml += visibleLogs.map(l => {
+        const m = getMember(l.memberId);
+        const p = getProject(l.projectId);
+        const projColor = p?.color || 'var(--primary)';
+        return `<div class="cal-event" style="background: ${projColor}" title="${m?.name || '?'}: ${p?.name || '?'}\n${l.task} (${l.pct}%)">
+          ${m?.name || '?'}: ${p?.name || '?'} (${l.pct}%)
+        </div>`;
+      }).join('');
+      if (moreCount > 0) {
+        eventsHtml += `<div class="cal-event-more">+${moreCount}개 더보기</div>`;
+      }
+      eventsHtml += `</div>`;
+    }
+    
+    const cellEl = document.createElement('div');
+    cellEl.className = cellCls;
+    
+    // Set click handler and title
+    if (cellLogs.length > 0) {
+      cellEl.setAttribute('onclick', `showDayLogs('${cell.dateStr}')`);
+      cellEl.setAttribute('title', `${formatDate(cell.dateStr)}: ${cellLogs.length}건의 업무 로그 보기`);
+    } else {
+      cellEl.setAttribute('onclick', `openLogModalWithDate('${cell.dateStr}')`);
+      cellEl.setAttribute('title', `${formatDate(cell.dateStr)}: 새 업무 등록`);
+    }
+    
+    cellEl.innerHTML = `
+      <div class="calendar-cell-header">
+        <span class="calendar-day-num">${cell.dayNum}</span>
+      </div>
+      ${eventsHtml}
+    `;
+    
+    container.appendChild(cellEl);
+  });
+}
+
+function showDayLogs(dateStr) {
+  window.__activeDayLogsDate = dateStr;
+  
+  // Filter logs for this day
+  const memVal = document.getElementById('logMemberFilter').value;
+  const projVal = document.getElementById('logProjectFilter').value;
+  
+  let dayLogs = data.logs.filter(l => l.date === dateStr);
+  if (memVal) dayLogs = dayLogs.filter(l => l.memberId === memVal);
+  if (projVal) dayLogs = dayLogs.filter(l => l.projectId === projVal);
+  
+  // Sort logs by created time descending
+  dayLogs.sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+  
+  const titleEl = document.getElementById('dayLogsTitle');
+  if (titleEl) {
+    titleEl.textContent = `📅 ${formatDate(dateStr)} 업무 상세 로그`;
+  }
+  
+  const tbody = document.getElementById('dayLogsTableBody');
+  if (tbody) {
+    tbody.innerHTML = dayLogs.length ? dayLogs.map(l => {
+      const m = getMember(l.memberId);
+      const p = getProject(l.projectId);
+      return `<tr>
+        <td>${m ? `<strong class="clickable-member" onclick="closeModal('dayLogsModal'); viewMember('${m.id}')">${m.name}</strong>` : '-'}</td>
+        <td>${roleTag(l.role)}</td>
+        <td><span class="badge badge-blue" style="cursor:pointer" onclick="closeModal('dayLogsModal'); viewProject('${l.projectId}')">${p?.name||'-'}</span></td>
+        <td>${l.task}</td>
+        <td>${pctBadge(l.pct)}</td>
+        <td style="color:var(--text-light);font-size:12px">${l.note||'-'}</td>
+        <td><span class="badge badge-purple">${l.registeredBy||'-'}</span></td>
+        <td><button class="btn btn-sm btn-danger" onclick="deleteLog('${l.id}')">삭제</button></td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="8" class="empty-state">해당 일에 필터 조건에 부합하는 업무 로그가 없습니다.</td></tr>`;
+  }
+  
+  const modal = document.getElementById('dayLogsModal');
+  if (modal) {
+    modal.classList.add('open');
+  }
+}
+
+function openLogModalWithDate(dateStr) {
+  openLogModal();
+  const dateInput = document.getElementById('logDate');
+  const targetDate = dateStr || window.__activeDayLogsDate || today();
+  if (dateInput) {
+    dateInput.value = targetDate;
+  }
 }
 
 // ===================== MATRIX =====================
@@ -1813,7 +2111,7 @@ async function saveLog() {
   });
   await save();
   closeModal('logModal');
-  renderDashboard();
+  renderCurrentPage();
   showToast('✅ 업무가 등록되었습니다');
 }
 
@@ -2256,6 +2554,29 @@ async function init() {
   if (loadingOverlayEl) loadingOverlayEl.classList.add('hidden');
 
   populateSelects();
+  
+  // Recover logs view state from URL or localStorage
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('view');
+    const monthParam = params.get('month');
+    
+    if (viewParam && ['table', 'calendar'].includes(viewParam)) {
+      logViewMode = viewParam;
+    } else {
+      const savedView = localStorage.getItem('creative_cp_log_view_mode');
+      if (savedView && ['table', 'calendar'].includes(savedView)) {
+        logViewMode = savedView;
+      }
+    }
+    
+    if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+      const [y, m] = monthParam.split('-').map(Number);
+      calendarYear = y;
+      calendarMonth = m;
+    }
+  } catch(e) {}
+
   let startPage = 'dashboard';
   try {
     const params = new URLSearchParams(window.location.search);

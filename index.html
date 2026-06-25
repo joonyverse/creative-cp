@@ -91,24 +91,29 @@
   <div class="page" id="page-logs">
     <div class="card mb16">
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-        <div class="form-group" style="min-width:130px;">
-          <label>조회 기간</label>
-          <select id="logPeriodFilter" onchange="onPeriodChange()">
-            <option value="today">오늘</option>
-            <option value="week">최근 1주일</option>
-            <option value="month">최근 1개월</option>
-            <option value="all">전체 기간</option>
-          </select>
+        <!-- Table View specific filters wrapped in #logPeriodFilterGroup -->
+        <div id="logPeriodFilterGroup" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+          <div class="form-group" style="min-width:130px; margin:0;">
+            <label>조회 기간</label>
+            <select id="logPeriodFilter" onchange="onPeriodChange()">
+              <option value="today">오늘</option>
+              <option value="week">최근 1주일</option>
+              <option value="month">최근 1개월</option>
+              <option value="all">전체 기간</option>
+            </select>
+          </div>
+          <div class="form-group" style="min-width:150px; margin:0;">
+            <label>특정 날짜 지정</label>
+            <input type="date" id="logDateFilter" onchange="onDateChange()">
+          </div>
         </div>
-        <div class="form-group" style="min-width:150px;">
-          <label>특정 날짜 지정</label>
-          <input type="date" id="logDateFilter" onchange="onDateChange()">
-        </div>
-        <div class="form-group" style="min-width:130px;">
+        
+        <!-- Shared filters (work for both table and calendar views) -->
+        <div class="form-group" style="min-width:130px; margin:0;">
           <label>팀원 필터</label>
           <select id="logMemberFilter" onchange="renderLogs()"><option value="">전체</option></select>
         </div>
-        <div class="form-group" style="min-width:130px;">
+        <div class="form-group" style="min-width:130px; margin:0;">
           <label>프로젝트 필터</label>
           <select id="logProjectFilter" onchange="renderLogs()"><option value="">전체</option></select>
         </div>
@@ -118,12 +123,51 @@
         </div>
       </div>
     </div>
-    <div class="card">
+    
+    <!-- View Selector (Table / Calendar Toggle) -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+      <div class="section-title" style="margin:0; font-size: 15px; font-weight: 800;">
+        <span>📝 업무 로그 목록</span>
+      </div>
+      <div style="display:flex; gap:6px;" id="logViewSelector">
+        <button class="btn btn-sm btn-primary" id="btnLogViewTable" onclick="setLogView('table')" style="padding: 5px 12px;">📋 테이블뷰</button>
+        <button class="btn btn-sm" id="btnLogViewCalendar" onclick="setLogView('calendar')" style="background:#f0f4ff; color:var(--primary); border:1px solid #c7d2fe; padding: 5px 12px;">📅 캘린더뷰</button>
+      </div>
+    </div>
+
+    <!-- Table View Container -->
+    <div class="card" id="logTableWrap">
       <div class="table-wrap">
         <table>
           <thead><tr><th>날짜</th><th>팀원</th><th>역할</th><th>프로젝트</th><th>업무내용</th><th>투입률</th><th>메모</th><th>등록자</th><th>액션</th></tr></thead>
           <tbody id="logsTableBody"></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Calendar View Container -->
+    <div id="logCalendarWrap" style="display:none;">
+      <!-- Month Navigator -->
+      <div class="card mb16" style="display:flex; justify-content:space-between; align-items:center; padding: 12px 20px;">
+        <button class="btn btn-sm" onclick="moveCalendarMonth(-1)" style="border:1.5px solid var(--border); background:white; color:var(--text); font-weight:700; padding: 5px 12px;">◀ 이전 달</button>
+        <strong id="calendarMonthTitle" style="font-size:17px; font-weight:800; color:var(--text);">2026년 6월</strong>
+        <button class="btn btn-sm" onclick="moveCalendarMonth(1)" style="border:1.5px solid var(--border); background:white; color:var(--text); font-weight:700; padding: 5px 12px;">다음 달 ▶</button>
+      </div>
+      
+      <!-- Calendar Grid Card -->
+      <div class="card" style="padding: 16px;">
+        <div class="calendar-grid-header" style="display:grid; grid-template-columns: repeat(7, 1fr); text-align:center; font-weight:800; font-size:12px; border-bottom:2px solid var(--border); padding-bottom:10px; margin-bottom:10px; color:var(--text-light);">
+          <div style="color:var(--danger)">일</div>
+          <div>월</div>
+          <div>화</div>
+          <div>수</div>
+          <div>목</div>
+          <div>금</div>
+          <div style="color:var(--primary)">토</div>
+        </div>
+        <div id="calendarGridBody" style="display:grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(110px, auto); gap: 6px;">
+          <!-- Dynamically filled with renderCalendar() -->
+        </div>
       </div>
     </div>
   </div>
@@ -630,6 +674,39 @@
       <input type="text" id="nicknameInput" placeholder="예: 김민준" maxlength="20" style="font-size:15px;padding:12px;">
     </div>
     <button class="btn btn-primary" style="width:100%;padding:12px;" onclick="saveNickname()">시작하기 →</button>
+  </div>
+</div>
+
+<!-- Day Logs Details Modal -->
+<div class="modal-overlay" id="dayLogsModal">
+  <div class="modal" style="max-width: 800px; width: 90%;">
+    <div class="modal-title" style="display:flex; justify-content:space-between; align-items:center;">
+      <span id="dayLogsTitle">📅 업무 상세 로그</span>
+      <button class="btn btn-sm" onclick="closeModal('dayLogsModal')" style="background:transparent; border:none; font-size:18px; cursor:pointer; color:var(--text-light);">✕</button>
+    </div>
+    <div class="table-wrap" style="max-height: 400px; overflow-y: auto; margin-top: 14px; margin-bottom: 20px;">
+      <table>
+        <thead>
+          <tr>
+            <th>팀원</th>
+            <th>역할</th>
+            <th>프로젝트</th>
+            <th>업무내용</th>
+            <th>투입률</th>
+            <th>메모</th>
+            <th>등록자</th>
+            <th>액션</th>
+          </tr>
+        </thead>
+        <tbody id="dayLogsTableBody">
+          <!-- Dynamically filled -->
+        </tbody>
+      </table>
+    </div>
+    <div class="modal-actions" style="margin-top: 0; justify-content: flex-end; gap: 8px;">
+      <button class="btn btn-success" id="dayLogsAddBtn" onclick="closeModal('dayLogsModal'); openLogModalWithDate();">+ 새 업무 등록</button>
+      <button class="btn btn-primary" onclick="closeModal('dayLogsModal')">닫기</button>
+    </div>
   </div>
 </div>
 
