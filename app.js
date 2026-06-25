@@ -1427,6 +1427,12 @@ function autoFillRole() {
 }
 
 function showRecallPanel() {
+  const panel = document.getElementById('logRecallPanel');
+  if (panel && panel.style.display === 'block') {
+    toggleRecallPanel(false);
+    return;
+  }
+
   const memberId = document.getElementById('logMember').value;
   if (!memberId) {
     alert('팀원을 먼저 선택해주세요.');
