@@ -10,6 +10,32 @@ if (typeof supabase !== 'undefined') {
   supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 }
 
+// ===================== INITIAL ACTIVE PAGE RESTORE (SYNC) =====================
+(function() {
+  let startPage = 'dashboard';
+  try {
+    const savedPage = localStorage.getItem('creative_cp_active_page');
+    if (savedPage && ['dashboard', 'logs', 'matrix', 'projects', 'members'].includes(savedPage)) {
+      startPage = savedPage;
+    }
+  } catch(e) {}
+  
+  // Update DOM classes immediately (to avoid visual flash during loading)
+  const pageMap = {dashboard:0, logs:1, matrix:2, projects:3, members:4};
+  const tabs = document.querySelectorAll('.tabs .tab');
+  if (tabs && tabs.length > 0) {
+    tabs.forEach(t => t.classList.remove('active'));
+    const idx = pageMap[startPage];
+    if (tabs[idx]) tabs[idx].classList.add('active');
+  }
+  
+  const targetPage = document.getElementById('page-' + startPage);
+  if (targetPage) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    targetPage.classList.add('active');
+  }
+})();
+
 // ===================== SHARED STORAGE HELPERS (SUPABASE) =====================
 const STORAGE_KEY = 'creative_cp_rm_data';
 const USER_KEY = 'creative_cp_rm_user';
@@ -327,6 +353,9 @@ function progressClass(p) {
 // ===================== PAGES =====================
 function showPage(name) {
   currentPage = name;
+  try {
+    localStorage.setItem('creative_cp_active_page', name);
+  } catch(e) {}
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   const targetPage = document.getElementById('page-' + name);
@@ -700,11 +729,15 @@ function renderMatrix() {
 }
 
 // ===================== PROJECTS CRUD =====================
-let projViewMode = 'table'; // 'table' | 'card' | 'timeline'
+let projViewMode = 'table'; // 'table' | 'card' | 'timeline' (default fallback)
+try {
+  const savedView = localStorage.getItem('creative_cp_proj_view_mode');
+  if (savedView && ['table', 'card', 'timeline'].includes(savedView)) {
+    projViewMode = savedView;
+  }
+} catch(e) {}
 
-function setProjView(mode) {
-  projViewMode = mode;
-  
+function updateProjViewSelectorUI(mode) {
   const btnCard = document.getElementById('btnViewCard');
   const btnTable = document.getElementById('btnViewTable');
   const btnTimeline = document.getElementById('btnViewTimeline');
@@ -723,7 +756,14 @@ function setProjView(mode) {
     activeBtn.style.color = '';
     activeBtn.style.border = '';
   }
-  
+}
+
+function setProjView(mode) {
+  projViewMode = mode;
+  try {
+    localStorage.setItem('creative_cp_proj_view_mode', mode);
+  } catch(e) {}
+  updateProjViewSelectorUI(mode);
   renderProjects();
 }
 
@@ -748,6 +788,7 @@ function getFilteredProjects() {
 }
 
 function renderProjects() {
+  updateProjViewSelectorUI(projViewMode);
   const list = getFilteredProjects();
   const projectCountEl = document.getElementById('projectCount');
   if (projectCountEl) projectCountEl.textContent = list.length;
@@ -896,7 +937,8 @@ function renderTimeline(list) {
   }
   
   // 1. Generate Headers
-  let headerHtml = `<div class="timeline-header-cell header-label">프로젝트 일정 (6주)</div>`;
+  let headerHtml = `<div class="timeline-header-row">`;
+  headerHtml += `<div class="timeline-header-cell header-label">프로젝트 일정 (6주)</div>`;
   
   let currentMonth = -1;
   days.forEach((day, idx) => {
@@ -932,6 +974,7 @@ function renderTimeline(list) {
       </div>
     `;
   });
+  headerHtml += `</div>`;
   
   // 2. Generate Project Rows
   let rowsHtml = '';
@@ -993,7 +1036,7 @@ function renderTimeline(list) {
     let barHtml = '';
     if (gridStart < TIMELINE_DAYS && gridEnd >= 0) {
       barHtml = `
-        <div class="timeline-bar" style="grid-column: ${colStart} / ${colEnd + 2}; background: ${p.color || 'var(--primary)'}" onclick="viewProject('${p.id}')">
+        <div class="timeline-bar" style="grid-column: ${colStart} / ${colEnd + 1}; background: ${p.color || 'var(--primary)'}" onclick="viewProject('${p.id}')">
           <span class="timeline-bar-text" title="${p.name} (${p.status}) | ${dateRangeStr}">${p.name} (${p.status})</span>
         </div>
       `;
@@ -1788,7 +1831,14 @@ async function init() {
   const loadingOverlayEl = document.getElementById('loadingOverlay');
   if (loadingOverlayEl) loadingOverlayEl.classList.add('hidden');
 
-  renderDashboard();
+  let startPage = 'dashboard';
+  try {
+    const savedPage = localStorage.getItem('creative_cp_active_page');
+    if (savedPage && ['dashboard', 'logs', 'matrix', 'projects', 'members'].includes(savedPage)) {
+      startPage = savedPage;
+    }
+  } catch(e) {}
+  showPage(startPage);
   populateSelects();
   startAutoRefresh();
 }
