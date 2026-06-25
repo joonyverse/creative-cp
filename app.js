@@ -14,9 +14,21 @@ if (typeof supabase !== 'undefined') {
 (function() {
   let startPage = 'dashboard';
   try {
-    const savedPage = localStorage.getItem('creative_cp_active_page');
-    if (savedPage && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics'].includes(savedPage)) {
-      startPage = savedPage;
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    const memberParam = params.get('member');
+    
+    if (tabParam && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics'].includes(tabParam)) {
+      startPage = tabParam;
+    } else {
+      const savedPage = localStorage.getItem('creative_cp_active_page');
+      if (savedPage && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics'].includes(savedPage)) {
+        startPage = savedPage;
+      }
+    }
+    
+    if (memberParam) {
+      window.__urlSelectedMemberId = memberParam;
     }
   } catch(e) {}
   
@@ -364,6 +376,30 @@ function showPage(name) {
   const tabs = document.querySelectorAll('.tab');
   const pageMap = {dashboard:0, logs:1, matrix:2, projects:3, members:4, analytics:5};
   if (tabs[pageMap[name]]) tabs[pageMap[name]].classList.add('active');
+  
+  // Sync page state to URL query parameters
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', name);
+    
+    if (name === 'analytics') {
+      const memberSelect = document.getElementById('analyticsMember');
+      let mId = memberSelect?.value;
+      if (!mId) {
+        mId = localStorage.getItem('creative_cp_analytics_member');
+      }
+      if (!mId && data.members && data.members.length > 0) {
+        mId = data.members[0].id;
+      }
+      if (mId) {
+        url.searchParams.set('member', mId);
+      }
+    } else {
+      url.searchParams.delete('member');
+    }
+    window.history.replaceState(null, '', url.pathname + url.search);
+  } catch(e) {}
+
   renderCurrentPage();
 }
 
@@ -1624,8 +1660,17 @@ function populateSelects() {
   if (analyticsMemberEl) {
     const currentVal = analyticsMemberEl.value;
     analyticsMemberEl.innerHTML = memberOpts;
-    if (currentVal && data.members.some(m => m.id === currentVal)) {
+    
+    if (window.__urlSelectedMemberId && data.members.some(m => m.id === window.__urlSelectedMemberId)) {
+      analyticsMemberEl.value = window.__urlSelectedMemberId;
+      delete window.__urlSelectedMemberId; // Use once, then clean up
+    } else if (currentVal && data.members.some(m => m.id === currentVal)) {
       analyticsMemberEl.value = currentVal;
+    } else {
+      const savedMember = localStorage.getItem('creative_cp_analytics_member');
+      if (savedMember && data.members.some(m => m.id === savedMember)) {
+        analyticsMemberEl.value = savedMember;
+      }
     }
   }
 }
@@ -1900,8 +1945,18 @@ function renderAnalytics() {
   initAnalyticsPeriod();
   
   const memberSelect = document.getElementById('analyticsMember');
-  if (memberSelect && !memberSelect.value && data.members && data.members.length > 0) {
-    memberSelect.value = data.members[0].id;
+  if (memberSelect && !memberSelect.value) {
+    let targetId = window.__urlSelectedMemberId;
+    if (!targetId) {
+      targetId = localStorage.getItem('creative_cp_analytics_member');
+    }
+    if (!targetId && data.members && data.members.length > 0) {
+      targetId = data.members[0].id;
+    }
+    if (targetId && data.members.some(m => m.id === targetId)) {
+      memberSelect.value = targetId;
+      delete window.__urlSelectedMemberId; // Clean up after successful selection
+    }
   }
   
   const memberId = memberSelect?.value;
@@ -1912,6 +1967,15 @@ function renderAnalytics() {
   
   const member = getMember(memberId);
   if (!member) return;
+  
+  // Sync selected member state to URL and localStorage
+  try {
+    localStorage.setItem('creative_cp_analytics_member', memberId);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', 'analytics');
+    url.searchParams.set('member', memberId);
+    window.history.replaceState(null, '', url.pathname + url.search);
+  } catch(e) {}
   
   // 0. Render Member Profile Banner
   const profileEl = document.getElementById('analyticsMemberProfile');
@@ -2172,9 +2236,15 @@ async function init() {
   populateSelects();
   let startPage = 'dashboard';
   try {
-    const savedPage = localStorage.getItem('creative_cp_active_page');
-    if (savedPage && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics'].includes(savedPage)) {
-      startPage = savedPage;
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics'].includes(tabParam)) {
+      startPage = tabParam;
+    } else {
+      const savedPage = localStorage.getItem('creative_cp_active_page');
+      if (savedPage && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics'].includes(savedPage)) {
+        startPage = savedPage;
+      }
     }
   } catch(e) {}
   showPage(startPage);
