@@ -530,10 +530,17 @@ textarea { resize: vertical; min-height: 60px; }
 
 /* 세로 막대 그래프 추이 차트 */
 .trend-chart-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 100%;
+  padding: 20px 16px 28px 16px; /* 위 20px, 좌우 16px, 아래 28px (날짜 공간 확보) */
   min-height: 200px;
   border-bottom: 2px solid var(--border);
   box-sizing: border-box;
-  padding-bottom: 24px; /* absolute 날짜 라벨 공간 확보 */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 /* 트렌드 차트 래퍼 스크롤바 스타일 커스텀 */
 .trend-chart-wrapper::-webkit-scrollbar {
@@ -558,7 +565,7 @@ textarea { resize: vertical; min-height: 60px; }
   justify-content: flex-end;
   height: 100%;
   flex: 1;
-  min-width: 8px;
+  min-width: 6px;
   gap: 6px;
   position: relative;
 }
@@ -595,7 +602,9 @@ textarea { resize: vertical; min-height: 60px; }
   border-top-color: rgba(15, 23, 42, 0.9);
 }
 .trend-bar-track {
-  width: 6px;
+  width: 60%;
+  min-width: 5px;
+  max-width: 12px;
   background: #f1f5f9;
   border-radius: 3px;
   height: 160px;
@@ -622,7 +631,7 @@ textarea { resize: vertical; min-height: 60px; }
   text-align: center;
   white-space: nowrap;
   position: absolute;
-  bottom: -22px;
+  bottom: -24px;
   left: 50%;
   transform: translateX(-50%);
 }
