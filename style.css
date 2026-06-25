@@ -557,7 +557,7 @@ textarea { resize: vertical; min-height: 60px; }
   justify-content: flex-end;
   height: 100%;
   flex: 1;
-  min-width: 12px;
+  min-width: 8px;
   gap: 6px;
   position: relative;
 }
@@ -594,9 +594,9 @@ textarea { resize: vertical; min-height: 60px; }
   border-top-color: rgba(15, 23, 42, 0.9);
 }
 .trend-bar-track {
-  width: 12px;
+  width: 6px;
   background: #f1f5f9;
-  border-radius: 6px;
+  border-radius: 3px;
   height: 160px;
   display: flex;
   flex-direction: column;
@@ -605,7 +605,7 @@ textarea { resize: vertical; min-height: 60px; }
 }
 .trend-bar-fill {
   width: 100%;
-  border-radius: 6px;
+  border-radius: 3px;
   background: var(--primary);
   transition: height 0.3s ease;
 }
