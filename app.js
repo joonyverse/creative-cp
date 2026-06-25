@@ -433,12 +433,35 @@ function pctBadge(p) {
 
 // ===================== LOGS =====================
 function renderLogs() {
+  const periodVal = document.getElementById('logPeriodFilter').value;
   const dateVal = document.getElementById('logDateFilter').value;
   const memVal = document.getElementById('logMemberFilter').value;
   const projVal = document.getElementById('logProjectFilter').value;
 
   let logs = [...data.logs];
-  if (dateVal) logs = logs.filter(l => l.date === dateVal);
+
+  // 1. Period and specific date filtering
+  if (dateVal) {
+    logs = logs.filter(l => l.date === dateVal);
+  } else if (periodVal && periodVal !== 'all') {
+    const td = new Date();
+    const todayStr = today();
+    if (periodVal === 'today') {
+      logs = logs.filter(l => l.date === todayStr);
+    } else if (periodVal === 'week') {
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(td.getDate() - 7);
+      const limitStr = oneWeekAgo.toISOString().split('T')[0];
+      logs = logs.filter(l => l.date >= limitStr && l.date <= todayStr);
+    } else if (periodVal === 'month') {
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(td.getMonth() - 1);
+      const limitStr = oneMonthAgo.toISOString().split('T')[0];
+      logs = logs.filter(l => l.date >= limitStr && l.date <= todayStr);
+    }
+  }
+
+  // 2. Member and project filtering
   if (memVal) logs = logs.filter(l => l.memberId === memVal);
   if (projVal) logs = logs.filter(l => l.projectId === projVal);
 
@@ -462,6 +485,89 @@ function renderLogs() {
       </tr>`;
     }).join('') : '<tr><td colspan="9" class="empty-state">조건에 맞는 로그가 없습니다</td></tr>';
   }
+}
+
+function onPeriodChange() {
+  // Clear specific date input if period selection changes
+  const dateEl = document.getElementById('logDateFilter');
+  if (dateEl) dateEl.value = '';
+  renderLogs();
+}
+
+function onDateChange() {
+  // Reset period selection to 'all' if a specific date is chosen
+  const dateEl = document.getElementById('logDateFilter');
+  const periodEl = document.getElementById('logPeriodFilter');
+  if (dateEl && dateEl.value && periodEl) {
+    periodEl.value = 'all';
+  }
+  renderLogs();
+}
+
+function downloadLogsCSV() {
+  const periodVal = document.getElementById('logPeriodFilter').value;
+  const dateVal = document.getElementById('logDateFilter').value;
+  const memVal = document.getElementById('logMemberFilter').value;
+  const projVal = document.getElementById('logProjectFilter').value;
+
+  let logs = [...data.logs];
+
+  // Apply filters identically to renderLogs
+  if (dateVal) {
+    logs = logs.filter(l => l.date === dateVal);
+  } else if (periodVal && periodVal !== 'all') {
+    const td = new Date();
+    const todayStr = today();
+    if (periodVal === 'today') {
+      logs = logs.filter(l => l.date === todayStr);
+    } else if (periodVal === 'week') {
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(td.getDate() - 7);
+      const limitStr = oneWeekAgo.toISOString().split('T')[0];
+      logs = logs.filter(l => l.date >= limitStr && l.date <= todayStr);
+    } else if (periodVal === 'month') {
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(td.getMonth() - 1);
+      const limitStr = oneMonthAgo.toISOString().split('T')[0];
+      logs = logs.filter(l => l.date >= limitStr && l.date <= todayStr);
+    }
+  }
+
+  if (memVal) logs = logs.filter(l => l.memberId === memVal);
+  if (projVal) logs = logs.filter(l => l.projectId === projVal);
+
+  logs.sort((a,b) => (b.date+(b.createdAt||'')).localeCompare(a.date+(a.createdAt||'')));
+
+  // CSV generation with UTF-8 BOM to prevent Excel encoding issues
+  let csvContent = '\uFEFF';
+  csvContent += '날짜,팀원,역할,프로젝트,업무내용,투입률(%),메모,등록자\n';
+
+  logs.forEach(l => {
+    const m = getMember(l.memberId);
+    const p = getProject(l.projectId);
+    const row = [
+      formatDate(l.date),
+      m?.name || '-',
+      l.role || '팀원',
+      p?.name || '-',
+      `"${(l.task || '').replace(/"/g, '""')}"`,
+      l.pct || 0,
+      `"${(l.note || '').replace(/"/g, '""')}"`,
+      l.registeredBy || '-'
+    ].join(',');
+    csvContent += row + '\n';
+  });
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `업무로그_조회결과_${today()}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast('📥 CSV 다운로드가 완료되었습니다');
 }
 
 function deleteLog(id) {
@@ -1194,7 +1300,7 @@ async function init() {
   const todayBadgeEl = document.getElementById('todayBadge');
   if (todayBadgeEl) todayBadgeEl.textContent = new Date().toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'short'});
   const logDateFilterEl = document.getElementById('logDateFilter');
-  if (logDateFilterEl) logDateFilterEl.value = today();
+  if (logDateFilterEl) logDateFilterEl.value = '';
 
   // check saved user
   const savedUser = loadUser();

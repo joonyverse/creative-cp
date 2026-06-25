@@ -76,20 +76,30 @@
   <div class="page" id="page-logs">
     <div class="card mb16">
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-        <div class="form-group" style="min-width:150px;">
-          <label>날짜 선택</label>
-          <input type="date" id="logDateFilter" onchange="renderLogs()">
+        <div class="form-group" style="min-width:130px;">
+          <label>조회 기간</label>
+          <select id="logPeriodFilter" onchange="onPeriodChange()">
+            <option value="today">오늘</option>
+            <option value="week">최근 1주일</option>
+            <option value="month">최근 1개월</option>
+            <option value="all">전체 기간</option>
+          </select>
         </div>
         <div class="form-group" style="min-width:150px;">
+          <label>특정 날짜 지정</label>
+          <input type="date" id="logDateFilter" onchange="onDateChange()">
+        </div>
+        <div class="form-group" style="min-width:130px;">
           <label>팀원 필터</label>
           <select id="logMemberFilter" onchange="renderLogs()"><option value="">전체</option></select>
         </div>
-        <div class="form-group" style="min-width:150px;">
+        <div class="form-group" style="min-width:130px;">
           <label>프로젝트 필터</label>
           <select id="logProjectFilter" onchange="renderLogs()"><option value="">전체</option></select>
         </div>
-        <div style="margin-top:18px;">
+        <div style="margin-top:18px;display:flex;gap:8px;">
           <button class="btn btn-primary" onclick="openLogModal()">+ 업무 등록</button>
+          <button class="btn btn-success" onclick="downloadLogsCSV()">📥 CSV 다운로드</button>
         </div>
       </div>
     </div>

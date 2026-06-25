@@ -45,6 +45,7 @@ body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--
 .btn-sm { padding: 5px 12px; font-size: 12px; }
 .btn-danger { background: var(--danger); color: white; }
 .btn-success { background: var(--success); color: white; }
+.btn-success:hover { background: #05b184; }
 .btn-outline { background: transparent; border: 1.5px solid rgba(255,255,255,0.5); color: white; }
 .btn-outline:hover { background: rgba(255,255,255,0.1); }
 
