@@ -334,6 +334,26 @@ async function save() {
 }
 
 // ===================== UTILS =====================
+function adjustColorLightness(hex, percent) {
+  hex = hex.replace(/^\s*#|\s*$/g, '');
+  if (hex.length === 3) {
+    hex = hex.replace(/(.)/g, '$1$1');
+  }
+  let r = parseInt(hex.substr(0, 2), 16),
+      g = parseInt(hex.substr(2, 2), 16),
+      b = parseInt(hex.substr(4, 2), 16);
+
+  r = Math.min(255, Math.max(0, r + (r * percent)));
+  g = Math.min(255, Math.max(0, g + (g * percent)));
+  b = Math.min(255, Math.max(0, b + (b * percent)));
+
+  const rHex = Math.round(r).toString(16).padStart(2, '0');
+  const gHex = Math.round(g).toString(16).padStart(2, '0');
+  const bHex = Math.round(b).toString(16).padStart(2, '0');
+
+  return `#${rHex}${gHex}${bHex}`;
+}
+
 function today() {
   return new Date().toISOString().split('T')[0];
 }
@@ -2541,10 +2561,17 @@ function renderAnalytics() {
   Object.entries(projectLoadSums).forEach(([pid, loadSum], idx) => {
     const proj = getProject(pid);
     const pctShare = totalLogsLoad > 0 ? Math.round((loadSum / totalLogsLoad) * 100) : 0;
+    
+    // 원래 지정된 프로젝트 색상 불러오기
+    const baseColor = proj ? (proj.color || cardColors[idx % cardColors.length]) : '#94a3b8';
+    // 인덱스 기반 명도 조절 (중복 색상 시 구분감 상승)
+    const percentAdjust = (idx % 3 === 0) ? 0 : (idx % 3 === 1) ? 0.20 : -0.15;
+    const adjustedColor = adjustColorLightness(baseColor, percentAdjust);
+
     projectShares.push({
       pid,
       name: proj ? proj.name : '알 수 없는 프로젝트',
-      color: proj ? (proj.color || cardColors[idx % cardColors.length]) : '#94a3b8',
+      color: adjustedColor,
       share: pctShare,
       rawLoad: loadSum
     });
@@ -2555,36 +2582,69 @@ function renderAnalytics() {
   const donutChart = document.getElementById('analyticsDonutChart');
   const legendEl = document.getElementById('analyticsDonutLegend');
   
+  // 도넛 차트를 동적으로 그리는 헬퍼 함수 (호버 시 하이라이팅 적용)
+  function drawDonut(hoveredPid = null) {
+    if (!donutChart) return;
+    if (projectShares.length === 0) {
+      donutChart.style.background = 'conic-gradient(#eee 0% 100%)';
+      return;
+    }
+
+    let currentPct = 0;
+    const gradientParts = [];
+    const gap = 0.6; // 조각 간 흰색 경계선 너비 (%)
+    const hasMultiple = projectShares.length > 1;
+
+    projectShares.forEach((share, sIdx) => {
+      const nextPct = currentPct + share.share;
+      
+      // 호버된 아이템이 있을 때, 다른 조각들은 비활성화 색상(#e2e8f0)으로 처리
+      let drawColor = share.color;
+      if (hoveredPid !== null && share.pid !== hoveredPid) {
+        drawColor = '#e2e8f0';
+      }
+
+      if (hasMultiple && sIdx > 0) {
+        gradientParts.push(`#ffffff ${currentPct}% ${currentPct + gap}%`);
+        gradientParts.push(`${drawColor} ${currentPct + gap}% ${nextPct}%`);
+      } else {
+        gradientParts.push(`${drawColor} ${currentPct}% ${nextPct}%`);
+      }
+      currentPct = nextPct;
+    });
+
+    if (currentPct < 100) {
+      gradientParts.push(`#e2e8f0 ${currentPct}% 100%`);
+    }
+
+    donutChart.style.background = `conic-gradient(${gradientParts.join(', ')})`;
+  }
+  
   if (projectShares.length === 0) {
     if (donutChart) donutChart.style.background = 'conic-gradient(#eee 0% 100%)';
     if (legendEl) {
       legendEl.innerHTML = `<div style="text-align:center; color:var(--text-light); font-size:13px; padding:20px 0;">기간 내 투입 기록이 없습니다.</div>`;
     }
   } else {
-    let currentPct = 0;
-    const gradientParts = [];
-    projectShares.forEach(share => {
-      const nextPct = currentPct + share.share;
-      gradientParts.push(`${share.color} ${currentPct}% ${nextPct}%`);
-      currentPct = nextPct;
-    });
-    
-    if (currentPct < 100) {
-      gradientParts.push(`#e2e8f0 ${currentPct}% 100%`);
-    }
-    
-    if (donutChart) {
-      donutChart.style.background = `conic-gradient(${gradientParts.join(', ')})`;
-    }
-    
+    // 최초 차트 드로잉
+    drawDonut();
+
     if (legendEl) {
       legendEl.innerHTML = projectShares.map(share => `
-        <div class="donut-legend-item" onclick="viewProject('${share.pid}')" title="프로젝트 상세 보기">
+        <div class="donut-legend-item" data-pid="${share.pid}" title="프로젝트 상세 보기">
           <div class="donut-legend-color" style="background: ${share.color}"></div>
           <span class="donut-legend-name">${share.name}</span>
           <span class="donut-legend-val">${share.share}% (${share.rawLoad}%)</span>
         </div>
       `).join('');
+
+      // 호버 이벤트 바인딩으로 조각 하이라이트
+      legendEl.querySelectorAll('.donut-legend-item').forEach(item => {
+        const pid = item.dataset.pid;
+        item.addEventListener('mouseenter', () => drawDonut(pid));
+        item.addEventListener('mouseleave', () => drawDonut(null));
+        item.addEventListener('click', () => viewProject(pid));
+      });
     }
   }
   
