@@ -2133,6 +2133,7 @@ async function init() {
   const loadingOverlayEl = document.getElementById('loadingOverlay');
   if (loadingOverlayEl) loadingOverlayEl.classList.add('hidden');
 
+  populateSelects();
   let startPage = 'dashboard';
   try {
     const savedPage = localStorage.getItem('creative_cp_active_page');
@@ -2141,7 +2142,6 @@ async function init() {
     }
   } catch(e) {}
   showPage(startPage);
-  populateSelects();
   startAutoRefresh();
 }
 
