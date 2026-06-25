@@ -2683,8 +2683,10 @@ function renderAnalytics() {
       });
     }
 
-    // 도넛 차트 자체에 직접 마우스 호버 이벤트 설정 (각도 및 거리 계산)
+    // 도넛 차트 자체에 직접 마우스 호버 및 클릭 이벤트 설정 (각도 및 거리 계산)
     if (donutChart) {
+      let lastHoveredPid = null;
+
       donutChart.onmousemove = function(e) {
         const rect = donutChart.getBoundingClientRect();
         const cx = rect.left + rect.width / 2;
@@ -2699,6 +2701,8 @@ function renderAnalytics() {
         if (dist < 52 || dist > 96) {
           drawDonut(null);
           updateLegendHighlight(null);
+          lastHoveredPid = null;
+          donutChart.style.cursor = 'default';
           return;
         }
         
@@ -2723,11 +2727,21 @@ function renderAnalytics() {
         
         drawDonut(matchedPid);
         updateLegendHighlight(matchedPid);
+        lastHoveredPid = matchedPid;
+        donutChart.style.cursor = matchedPid ? 'pointer' : 'default';
       };
       
       donutChart.onmouseleave = function() {
         drawDonut(null);
         updateLegendHighlight(null);
+        lastHoveredPid = null;
+        donutChart.style.cursor = 'default';
+      };
+
+      donutChart.onclick = function() {
+        if (lastHoveredPid) {
+          viewProject(lastHoveredPid);
+        }
       };
     }
   }
