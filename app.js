@@ -2582,7 +2582,7 @@ function renderAnalytics() {
   const donutChart = document.getElementById('analyticsDonutChart');
   const legendEl = document.getElementById('analyticsDonutLegend');
   
-  // 도넛 차트를 동적으로 그리는 헬퍼 함수 (호버 시 하이라이팅 적용)
+  // 도넛 차트를 동적으로 그리는 헬퍼 함수 (호버 시 하이라이팅 및 안티앨리어싱 적용)
   function drawDonut(hoveredPid = null) {
     if (!donutChart) return;
     if (projectShares.length === 0) {
@@ -2593,6 +2593,7 @@ function renderAnalytics() {
     let currentPct = 0;
     const gradientParts = [];
     const gap = 0.6; // 조각 간 흰색 경계선 너비 (%)
+    const antialias = 0.15; // 톱니 현상 방지 보간 구간 (%)
     const hasMultiple = projectShares.length > 1;
 
     projectShares.forEach((share, sIdx) => {
@@ -2605,16 +2606,30 @@ function renderAnalytics() {
       }
 
       if (hasMultiple && sIdx > 0) {
-        gradientParts.push(`#ffffff ${currentPct}% ${currentPct + gap}%`);
-        gradientParts.push(`${drawColor} ${currentPct + gap}% ${nextPct}%`);
+        const prevColor = (hoveredPid !== null && projectShares[sIdx - 1].pid !== hoveredPid) ? '#e2e8f0' : projectShares[sIdx - 1].color;
+        // 이전 조각 끝에서 흰색으로 넘어갈 때 미세하게 전이시켜 경계를 부드럽게 처리
+        gradientParts.push(`${prevColor} ${currentPct - antialias}%`);
+        gradientParts.push(`#ffffff ${currentPct}%`);
+        gradientParts.push(`#ffffff ${currentPct + gap}%`);
+        gradientParts.push(`${drawColor} ${currentPct + gap + antialias}%`);
       } else {
-        gradientParts.push(`${drawColor} ${currentPct}% ${nextPct}%`);
+        if (sIdx === 0) {
+          gradientParts.push(`${drawColor} 0%`);
+        }
       }
+      
+      gradientParts.push(`${drawColor} ${nextPct - antialias}%`);
       currentPct = nextPct;
     });
 
     if (currentPct < 100) {
-      gradientParts.push(`#e2e8f0 ${currentPct}% 100%`);
+      const lastColor = (hoveredPid !== null && projectShares[projectShares.length - 1].pid !== hoveredPid) ? '#e2e8f0' : projectShares[projectShares.length - 1].color;
+      gradientParts.push(`${lastColor} ${currentPct - antialias}%`);
+      gradientParts.push(`#e2e8f0 ${currentPct}%`);
+      gradientParts.push(`#e2e8f0 100%`);
+    } else {
+      const lastColor = (hoveredPid !== null && projectShares[projectShares.length - 1].pid !== hoveredPid) ? '#e2e8f0' : projectShares[projectShares.length - 1].color;
+      gradientParts.push(`${lastColor} 100%`);
     }
 
     donutChart.style.background = `conic-gradient(${gradientParts.join(', ')})`;
