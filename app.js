@@ -2763,7 +2763,7 @@ function renderAnalytics() {
       dayCount++;
     }
     
-    datesInRange.forEach(dateStr => {
+    datesInRange.forEach((dateStr, idx) => {
       const load = dailyLoads[dateStr] || 0;
       const dObj = new Date(dateStr);
       const dateLabel = `${dObj.getMonth()+1}/${dObj.getDate()}`;
@@ -2776,6 +2776,10 @@ function renderAnalytics() {
       const heightPct = Math.min(100, load);
       const fillCls = load <= 30 ? 'low' : load <= 70 ? 'mid' : load <= 100 ? 'high' : 'over';
       
+      // 첫 날짜, 마지막 날짜, 오늘, 그리고 5일 간격으로만 텍스트를 노출하여 가로 폭 간섭 제거
+      const showLabel = (idx === 0 || idx === datesInRange.length - 1 || isToday || idx % 5 === 0);
+      const labelText = showLabel ? (isToday ? '오늘' : dateLabel) : '';
+      
       const barCol = document.createElement('div');
       barCol.className = 'trend-bar-col';
       barCol.innerHTML = `
@@ -2783,7 +2787,7 @@ function renderAnalytics() {
         <div class="trend-bar-track">
           <div class="trend-bar-fill ${fillCls}" style="height: ${heightPct}%"></div>
         </div>
-        <div class="${dateCls}">${isToday ? '오늘' : dateLabel}</div>
+        <div class="${dateCls}">${labelText}</div>
       `;
       trendChart.appendChild(barCol);
     });
