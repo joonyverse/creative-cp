@@ -1388,6 +1388,9 @@ function openLogModal() {
   populateSelects();
   document.getElementById('logDate').value = today();
   
+  // Hide recall panel initially
+  toggleRecallPanel(false);
+
   // Auto-select member matching current user nickname
   let matchedMemberId = '';
   if (currentUser && data && data.members) {
@@ -1423,7 +1426,7 @@ function autoFillRole() {
   else document.getElementById('logRole').value = '팀원';
 }
 
-function recallLastLog() {
+function showRecallPanel() {
   const memberId = document.getElementById('logMember').value;
   if (!memberId) {
     alert('팀원을 먼저 선택해주세요.');
@@ -1436,22 +1439,59 @@ function recallLastLog() {
     return;
   }
   
-  // Find the most recent log by sorting date and createdAt desc
+  // Sort logs by date and createdAt desc
   const sorted = [...memberLogs].sort((a, b) => {
     const dateComp = b.date.localeCompare(a.date);
     if (dateComp !== 0) return dateComp;
     return (b.createdAt || '').localeCompare(a.createdAt || '');
   });
   
-  const lastLog = sorted[0];
+  // Get top 5 logs
+  const top5 = sorted.slice(0, 5);
   
-  document.getElementById('logProject').value = lastLog.projectId || '';
-  document.getElementById('logRole').value = lastLog.role || '팀원';
-  document.getElementById('logTask').value = lastLog.task || '';
-  document.getElementById('logPct').value = lastLog.pct !== undefined ? lastLog.pct : '50';
-  document.getElementById('logNote').value = lastLog.note || '';
+  const listEl = document.getElementById('logRecallList');
+  if (listEl) {
+    listEl.innerHTML = top5.map(l => {
+      const p = getProject(l.projectId);
+      const formattedD = formatDate(l.date);
+      const escapedTask = (l.task || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      return `
+        <div class="recall-item" onclick="selectRecallLog('${l.id}')">
+          <div style="display:flex; flex-direction:column; gap:2px; flex: 1; min-width: 0;">
+            <div style="font-weight:700; color:var(--text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${p?.name || '-'} · ${l.role}</div>
+            <div style="color:var(--text-light); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;" title="${escapedTask}">${l.task}</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-left: 8px; flex-shrink: 0;">
+            <span class="badge ${l.pct <= 30 ? 'badge-green' : l.pct <= 70 ? 'badge-orange' : 'badge-red'}">${l.pct}%</span>
+            <span style="font-size:10px; color:var(--text-light);">${formattedD}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
   
-  showToast('📋 최근 업무 내역을 불러왔습니다.');
+  toggleRecallPanel(true);
+}
+
+function toggleRecallPanel(show) {
+  const panel = document.getElementById('logRecallPanel');
+  if (panel) {
+    panel.style.display = show ? 'block' : 'none';
+  }
+}
+
+function selectRecallLog(logId) {
+  const log = data.logs.find(l => l.id === logId);
+  if (!log) return;
+  
+  document.getElementById('logProject').value = log.projectId || '';
+  document.getElementById('logRole').value = log.role || '팀원';
+  document.getElementById('logTask').value = log.task || '';
+  document.getElementById('logPct').value = log.pct !== undefined ? log.pct : '50';
+  document.getElementById('logNote').value = log.note || '';
+  
+  toggleRecallPanel(false);
+  showToast('📋 선택하신 업무 내역을 불러왔습니다.');
 }
 
 async function saveLog() {

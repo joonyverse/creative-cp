@@ -242,10 +242,19 @@
       <div class="form-group">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <label>팀원 선택</label>
-          <button class="btn btn-sm" id="btnRecallLast" style="padding:2px 8px; font-size:11px; background:#f0f4ff; color:var(--primary); border:1px solid #c7d2fe; cursor:pointer;" onclick="recallLastLog(); event.preventDefault();">📋 최근 업무 불러오기</button>
+          <button class="btn btn-sm" id="btnRecallLast" style="padding:2px 8px; font-size:11px; background:#f0f4ff; color:var(--primary); border:1px solid #c7d2fe; cursor:pointer;" onclick="showRecallPanel(); event.preventDefault();">📋 최근 업무 불러오기</button>
         </div>
         <select id="logMember" onchange="autoFillRole()"><option value="">선택...</option></select>
       </div>
+    </div>
+
+    <!-- 최근 업무 선택 패널 -->
+    <div id="logRecallPanel" class="recall-panel" style="display:none;">
+      <div class="recall-panel-header">
+        <span>📋 최근 등록 업무 목록 (최대 5건)</span>
+        <span class="recall-panel-close" onclick="toggleRecallPanel(false)">✕ 닫기</span>
+      </div>
+      <div id="logRecallList" class="recall-list-group"></div>
     </div>
     <div class="form-row">
       <div class="form-group">
