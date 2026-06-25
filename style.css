@@ -557,7 +557,7 @@ textarea { resize: vertical; min-height: 60px; }
   justify-content: flex-end;
   height: 100%;
   flex: 1;
-  min-width: 16px;
+  min-width: 12px;
   gap: 6px;
   position: relative;
 }
