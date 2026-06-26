@@ -70,6 +70,7 @@ let autoRefreshTimer = null;
 let lastSyncTime = null;
 let dashboardDate = null;
 let dashboardTableFilter = 'all';
+let dashboardViewMode = localStorage.getItem('creative_cp_dashboard_view_mode') || 'card';
 
 let logViewMode = 'calendar';
 let calendarYear = new Date().getFullYear();
@@ -652,25 +653,193 @@ function renderDashboard() {
     filteredLogs = todayLogs.filter(l => loadMap[l.memberId] > 100);
   }
 
-  const tbody = document.getElementById('todayTableBody');
-  if (tbody) {
-    tbody.innerHTML = filteredLogs.length ? filteredLogs.map(l => {
+  const workloadContentEl = document.getElementById('todayWorkloadContent');
+  if (workloadContentEl) {
+    if (dashboardViewMode === 'card') {
+      renderTodayCardView(workloadContentEl, filteredLogs, loadMap, isToday, activeDate);
+    } else {
+      renderTodayTableView(workloadContentEl, filteredLogs, isToday, activeDate);
+    }
+  }
+
+  // 트렌드 차트 렌더링 호출
+  renderTrendChart(activeDate);
+}
+
+function setDashboardViewMode(mode) {
+  dashboardViewMode = mode;
+  try { localStorage.setItem('creative_cp_dashboard_view_mode', mode); } catch(e) {}
+  
+  const cardBtn = document.getElementById('btn-view-card');
+  const tableBtn = document.getElementById('btn-view-table');
+  if (cardBtn && tableBtn) {
+    if (mode === 'card') {
+      cardBtn.classList.add('active');
+      tableBtn.classList.remove('active');
+    } else {
+      cardBtn.classList.remove('active');
+      tableBtn.classList.add('active');
+    }
+  }
+  renderDashboard();
+}
+
+function renderTodayCardView(container, filteredLogs, loadMap, isToday, activeDate) {
+  let targetMembers = data.members;
+  if (dashboardTableFilter === 'free') {
+    targetMembers = data.members.filter(m => (loadMap[m.id] || 0) < 50);
+  } else if (dashboardTableFilter === 'overload') {
+    targetMembers = data.members.filter(m => (loadMap[m.id] || 0) > 100);
+  }
+
+  if (!targetMembers.length) {
+    container.innerHTML = `<div class="empty-state" style="padding: 40px 0;"><div class="emoji">🔍</div>조건에 맞는 팀원이 없습니다.</div>`;
+    return;
+  }
+
+  let html = `<div class="today-card-grid">`;
+  
+  targetMembers.forEach(m => {
+    const load = loadMap[m.id] || 0;
+    const memberLogs = filteredLogs.filter(l => l.memberId === m.id);
+    
+    let pctClass = 'normal';
+    if (load > 100) pctClass = 'over';
+    else if (load > 80) pctClass = 'warn';
+
+    const cardClass = load > 100 ? 'today-member-card overloaded' : 'today-member-card';
+
+    html += `
+      <div class="${cardClass}">
+        <div class="today-card-header">
+          <div class="today-card-header-left">
+            <span class="today-card-name" onclick="viewMember('${m.id}')">${m.name}</span>
+            <span class="today-card-role">${m.title} / ${m.spec}</span>
+          </div>
+          <div class="today-card-header-right">
+            <div class="today-card-pct ${pctClass}">${load}%</div>
+          </div>
+        </div>
+        <div class="today-card-gauge">
+          <div class="today-card-gauge-fill ${progressClass(load)}" style="width: ${Math.min(load, 100)}%"></div>
+        </div>
+        <div class="today-card-body">
+    `;
+
+    if (memberLogs.length === 0) {
+      html += `<div class="empty-state" style="font-size: 11px; padding: 12px; min-height: auto;"><div class="emoji">😴</div>업무 로그 미등록</div>`;
+    } else {
+      memberLogs.sort((a,b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+      memberLogs.forEach(l => {
+        const p = getProject(l.projectId);
+        let projectClass = '';
+        if (l.projectId === 'p2') projectClass = 'project-beta';
+        else if (l.projectId === 'p3') projectClass = 'project-gamma';
+
+        html += `
+          <div class="today-task-item ${projectClass}">
+            <div class="today-task-item-header">
+              <span class="today-task-project" onclick="viewProject('${l.projectId}')">📂 ${p?.name || '기타'}</span>
+              <span class="today-task-pct">${l.pct}%</span>
+            </div>
+            <div class="today-task-content">${l.task}</div>
+            <div class="today-task-meta">
+              <span>👤 ${l.registeredBy || '-'}</span>
+              <span>🕒 ${l.createdAt || ''}</span>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    html += `
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+function renderTodayTableView(container, filteredLogs, isToday, activeDate) {
+  const memberOrder = data.members.map(m => m.id);
+  filteredLogs.sort((a, b) => {
+    const idxA = memberOrder.indexOf(a.memberId);
+    const idxB = memberOrder.indexOf(b.memberId);
+    const orderA = idxA === -1 ? 9999 : idxA;
+    const orderB = idxB === -1 ? 9999 : idxB;
+    if (orderA !== orderB) return orderA - orderB;
+    return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+  });
+
+  const rowspans = [];
+  let i = 0;
+  while (i < filteredLogs.length) {
+    let count = 1;
+    const currentMemberId = filteredLogs[i].memberId;
+    let j = i + 1;
+    while (j < filteredLogs.length && filteredLogs[j].memberId === currentMemberId) {
+      count++;
+      j++;
+    }
+    rowspans[i] = count;
+    for (let k = i + 1; k < j; k++) {
+      rowspans[k] = 0;
+    }
+    i = j;
+  }
+
+  let tableHtml = `
+    <div class="table-wrap">
+      <table id="todayTable">
+        <thead>
+          <tr>
+            <th>팀원</th>
+            <th>역할</th>
+            <th>프로젝트</th>
+            <th>업무내용</th>
+            <th>투입률</th>
+            <th>등록시간</th>
+            <th>등록자</th>
+          </tr>
+        </thead>
+        <tbody id="todayTableBody">
+  `;
+
+  if (filteredLogs.length) {
+    tableHtml += filteredLogs.map((l, index) => {
       const m = getMember(l.memberId);
       const p = getProject(l.projectId);
-      return `<tr>
-        <td>${m ? `<strong class="clickable-member" onclick="viewMember('${m.id}')">${m.name}</strong>` : '-'}</td>
-        <td>${roleTag(l.role)}</td>
+      const span = rowspans[index];
+      
+      const memberTd = span > 0 ? `<td rowspan="${span}" class="member-group-cell">${m ? `<strong class="clickable-member" onclick="viewMember('${m.id}')">${m.name}</strong>` : '-'}</td>` : '';
+      const roleTdHtml = span > 0 ? `<td rowspan="${span}" class="member-group-cell">${roleTag(l.role)}</td>` : '';
+
+      const isGroupStart = span > 0;
+      const rowClass = (isGroupStart && index > 0) ? 'class="group-start"' : '';
+
+      return `<tr ${rowClass}>
+        ${memberTd}
+        ${roleTdHtml}
         <td><span class="badge badge-blue" style="cursor:pointer" onclick="viewProject('${l.projectId}')">${p?.name||'-'}</span></td>
         <td>${l.task}</td>
         <td>${pctBadge(l.pct)}</td>
         <td style="color:var(--text-light);font-size:12px">${l.createdAt||''}</td>
         <td><span class="badge badge-purple">${l.registeredBy||'-'}</span></td>
       </tr>`;
-    }).join('') : `<tr><td colspan="7" class="empty-state">${isToday ? '등록된 업무가 없습니다.' : '해당 날짜에 등록된 업무가 없습니다.'}</td></tr>`;
+    }).join('');
+  } else {
+    tableHtml += `<tr><td colspan="7" class="empty-state">${isToday ? '등록된 업무가 없습니다.' : '해당 날짜에 등록된 업무가 없습니다.'}</td></tr>`;
   }
 
-  // 트렌드 차트 렌더링 호출
-  renderTrendChart(activeDate);
+  tableHtml += `
+        </tbody>
+      </table>
+    </div>
+  `;
+  
+  container.innerHTML = tableHtml;
 }
 
 function renderTrendChart(activeDate) {
@@ -3560,6 +3729,12 @@ async function init() {
       }
     }
   } catch(e) {}
+
+  // Initialize dashboard view mode buttons active state
+  const activeBtnId = dashboardViewMode === 'card' ? 'btn-view-card' : 'btn-view-table';
+  const activeBtnEl = document.getElementById(activeBtnId);
+  if (activeBtnEl) activeBtnEl.classList.add('active');
+
   showPage(startPage);
   startAutoRefresh();
 }

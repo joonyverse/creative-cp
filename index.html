@@ -97,15 +97,16 @@
       </div>
     </div>
     <div class="card mt20">
-      <div class="card-title">
+      <div class="card-title" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
         <span class="icon">📋</span> <span id="todayTableTitleLabel">오늘의 업무 현황</span>
+        <div class="view-toggle-group">
+          <button class="view-toggle-btn" id="btn-view-card" onclick="setDashboardViewMode('card')">📂 카드형</button>
+          <button class="view-toggle-btn" id="btn-view-table" onclick="setDashboardViewMode('table')">📋 표 형식</button>
+        </div>
         <span id="dashLastMod" class="last-mod" style="margin-left:auto;"></span>
       </div>
-      <div class="table-wrap">
-        <table id="todayTable">
-          <thead><tr><th>팀원</th><th>역할</th><th>프로젝트</th><th>업무내용</th><th>투입률</th><th>등록시간</th><th>등록자</th></tr></thead>
-          <tbody id="todayTableBody"></tbody>
-        </table>
+      <div id="todayWorkloadContent">
+        <!-- app.js에서 표 형식 또는 카드 형식으로 동적 렌더링 -->
       </div>
     </div>
   </div>
