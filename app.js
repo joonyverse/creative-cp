@@ -302,8 +302,25 @@ function saveNickname() {
   try { localStorage.setItem(USER_KEY, val); } catch(e) {}
   currentUser = val;
   document.getElementById('nicknameModal').classList.remove('open');
-  document.getElementById('currentUserDisplay').textContent = currentUser;
+  
+  const currentUserDisplayEl = document.getElementById('currentUserDisplay');
+  if (currentUserDisplayEl) currentUserDisplayEl.textContent = currentUser;
+  
+  const headerUserDisplayEl = document.getElementById('headerUserDisplay');
+  if (headerUserDisplayEl) headerUserDisplayEl.textContent = currentUser;
+  
   showToast(`✅ ${currentUser}님, 환영합니다!`);
+}
+
+function editNickname() {
+  const nicknameInput = document.getElementById('nicknameInput');
+  if (nicknameInput) {
+    nicknameInput.value = currentUser || '';
+  }
+  const modal = document.getElementById('nicknameModal');
+  if (modal) {
+    modal.classList.add('open');
+  }
 }
 
 // ===================== DEFAULT DATA =====================
@@ -3453,8 +3470,12 @@ async function init() {
     currentUser = savedUser;
     const nicknameModalEl = document.getElementById('nicknameModal');
     if (nicknameModalEl) nicknameModalEl.classList.remove('open');
+    
     const currentUserDisplayEl = document.getElementById('currentUserDisplay');
     if (currentUserDisplayEl) currentUserDisplayEl.textContent = currentUser;
+    
+    const headerUserDisplayEl = document.getElementById('headerUserDisplay');
+    if (headerUserDisplayEl) headerUserDisplayEl.textContent = currentUser;
   }
 
   // load shared data

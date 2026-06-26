@@ -40,6 +40,8 @@ body { background: var(--bg); color: var(--text); min-height: 100vh; }
 .header-right { display: flex; gap: 12px; align-items: center; }
 .today-badge { background: rgba(255,255,255,0.2); padding: 5px 14px; border-radius: 20px; font-size: 13px; }
 .team-badge { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.user-badge { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: background 0.2s; }
+.user-badge:hover { background: rgba(255,255,255,0.25); }
 .btn { padding: 8px 18px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
 .btn-white { background: white; color: var(--primary); }
 .btn-white:hover { background: #f0f0ff; }
