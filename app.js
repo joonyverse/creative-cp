@@ -4031,9 +4031,9 @@ function renderScheduleGantt() {
         <div class="sched-empty">
           <div class="sched-empty-icon">📊</div>
           <div>등록된 납품 일정이 없습니다.</div>
-          <div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">참고 파일(ref/samwoo-50-schedule.html)의 69개 일정을 DB로 마이그레이션할 수 있습니다.</div>
+          <div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">참고 파일(ref/samwoo-50-schedule.html)의 60개 일정을 DB로 마이그레이션할 수 있습니다.</div>
           <button class="btn btn-primary" onclick="migrateSamwooSeedData()" style="margin-top:16px; font-weight:600; padding:10px 18px;">
-            🚀 삼우 50주년 시드 데이터 DB 마이그레이션 (69개)
+            🚀 삼우 50주년 시드 데이터 DB 마이그레이션 (60개)
           </button>
         </div>`;
     } else {
@@ -4523,6 +4523,6 @@ async function migrateSamwooSeedData() {
   renderSchedulePage();
   showToast('🔄 시드 데이터를 DB로 동기화하는 중...');
   await save();
-  showToast('🎉 69개 납품 일정 데이터가 DB에 마이그레이션되었습니다!');
+  showToast('🎉 60개 납품 일정 데이터가 DB에 마이그레이션되었습니다!');
 }
 
