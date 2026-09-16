@@ -4201,8 +4201,7 @@ function renderScheduleGantt() {
     const pDdayStr = pDiff > 0 ? `D-${pDiff}` : pDiff === 0 ? 'D-Day' : `D+${Math.abs(pDiff)}`;
     const hasCustom = !!projectDeliveryDates[proj.id];
 
-    head.innerHTML = `<span><span class="sched-trk-bar" style="background:${proj.color}"></span>${schedEsc(proj.name)} <em>${doneN}/${allTrack.length}</em></span>` +
-      `<span class="sched-track-delivery-badge" title="프로젝트 기준 납품일: ${pDate}">🎯 ${hasCustom ? '📌 ' : ''}${schedFmtShort(pDate)} (${pDdayStr})</span>`;
+    head.innerHTML = `<span><span class="sched-trk-bar" style="background:${proj.color}"></span>${schedEsc(proj.name)} <em>${doneN}/${allTrack.length}</em></span>`;
     wrap.appendChild(head);
     
     const lanes = document.createElement('div');
@@ -4229,7 +4228,8 @@ function renderScheduleGantt() {
       const node = document.createElement('div');
       node.className = 'sched-item ' + it.status;
       node.style.left = s + 'px';
-      node.style.top = (li * 22) + 'px';
+      // Line 0 is reserved for delivery date dummy row
+      node.style.top = ((li + 1) * 22 + 2) + 'px';
       node.dataset.schedId = it.id;
       node.tabIndex = 0;
       node.title = schedEsc(proj.name) + ' · ' + schedFmt(it.start) + (it.end ? ' ~ ' + schedFmt(it.end) : '') + ' · ' + SCHED_STATUS_NAMES[it.status] + (it.note ? '\n\n' + it.note : '');
@@ -4268,7 +4268,7 @@ function renderScheduleGantt() {
       lanes.appendChild(node);
     });
 
-    // Render Track-Specific Delivery Line inside this project lane
+    // Render Track-Specific Delivery Line in dummy line 0
     const dlX = gx(pDate) + SCHED_DAY_W;
     if (dlX >= 0 && dlX <= TOTAL * SCHED_DAY_W) {
       const dl = document.createElement('div');
@@ -4279,7 +4279,8 @@ function renderScheduleGantt() {
       lanes.appendChild(dl);
     }
     
-    lanes.style.height = (packed.length * 22 + 8) + 'px';
+    // Height includes dummy row (line 0) + packed lines
+    lanes.style.height = ((packed.length + 1) * 22 + 8) + 'px';
     wrap.appendChild(lanes);
     canvas.appendChild(wrap);
   });
