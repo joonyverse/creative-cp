@@ -44,6 +44,7 @@
   <div class="tab" onclick="showPage('projects')">🚀 프로젝트 관리</div>
   <div class="tab" onclick="showPage('members')">👥 팀원 관리</div>
   <div class="tab" onclick="showPage('analytics')">📈 리소스 분석</div>
+  <div class="tab" onclick="showPage('schedule')">📅 납품 일정</div>
 </div>
 
 <div class="content">
@@ -489,6 +490,63 @@
     </div>
   </div>
 
+  <!-- SCHEDULE -->
+  <div class="page" id="page-schedule">
+    <!-- Delivery date header -->
+    <div class="card mb16">
+      <div class="sched-delivery-header">
+        <div>
+          <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px;">📅 납품 일정 관리</div>
+          <div style="font-size:12px;color:var(--text-light);">프로젝트별 납품 일정과 마일스톤을 간트차트로 관리합니다</div>
+        </div>
+        <div class="sched-delivery-info">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <label style="font-size:11px;color:var(--text-light);font-weight:700;">기준 납품일</label>
+              <input type="date" id="schedDeliveryDate" onchange="onScheduleDeliveryDateChange()" style="padding:4px 8px;border-radius:6px;border:1.5px solid var(--border);font-size:12px;">
+            </div>
+          </div>
+          <div>
+            <div class="sched-dday" id="schedDday">D-0</div>
+            <div class="sched-dday-meta">납품까지 <b id="schedDdayLabel">0일</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Project progress readout -->
+    <div class="sched-readout mb16" id="schedReadout"></div>
+
+    <!-- Toolbar: sub-tabs + filters -->
+    <div class="card mb16">
+      <div class="sched-toolbar">
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm btn-primary" id="btnSchedGantt" onclick="setScheduleView('gantt')">📊 공정표</button>
+          <button class="btn btn-sm" id="btnSchedList" onclick="setScheduleView('list')" style="background:#f0f4ff;color:var(--primary);border:1px solid #c7d2fe;">📋 리스트</button>
+          <button class="btn btn-sm" id="btnSchedRisk" onclick="setScheduleView('risk')" style="background:#f0f4ff;color:var(--primary);border:1px solid #c7d2fe;">⚠️ 확인 필요 <span id="schedRiskCount" style="font-weight:800;"></span></button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div class="sched-filter-chips" id="schedFilterChips"></div>
+          <button class="sched-chip" id="schedHideDone" onclick="toggleScheduleHideDone()">완료 숨기기</button>
+          <button class="btn btn-primary btn-sm" onclick="openScheduleModal()">+ 일정 추가</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gantt view -->
+    <div id="schedGanttWrap">
+      <div class="sched-scroller" id="schedScroller">
+        <div class="sched-canvas" id="schedCanvas"></div>
+      </div>
+    </div>
+
+    <!-- List view -->
+    <div id="schedListWrap" style="display:none;"></div>
+
+    <!-- Risk view -->
+    <div id="schedRiskWrap" style="display:none;"></div>
+  </div>
+
 </div>
 
 <!-- MODALS -->
@@ -789,6 +847,78 @@
   </div>
 </div>
 
+
+<!-- Schedule Modal -->
+<div class="modal-overlay" id="scheduleModal">
+  <div class="modal" style="width:520px;">
+    <div class="modal-title" id="schedModalTitle">📅 일정 추가</div>
+    <input type="hidden" id="editScheduleId">
+    <div class="form-row">
+      <div class="form-group" style="flex:2;">
+        <label>내용 *</label>
+        <input type="text" id="schedTitle" placeholder="예: 내지 전달, 샘플 제작 완료...">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>프로젝트 (트랙)</label>
+        <select id="schedProject"><option value="">선택...</option></select>
+      </div>
+      <div class="form-group">
+        <label>상태</label>
+        <select id="schedStatus">
+          <option value="todo">예정</option>
+          <option value="doing">진행 중</option>
+          <option value="done">완료</option>
+          <option value="risk">확인 필요</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>시작일 *</label>
+        <input type="date" id="schedStart">
+      </div>
+      <div class="form-group">
+        <label>종료일 (하루짜리면 비워두세요)</label>
+        <input type="date" id="schedEnd">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>주체</label>
+        <input type="text" id="schedOwner" placeholder="예: IB → 삼우">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>메모</label>
+        <textarea id="schedNote" placeholder="조건, 걸림돌, 확인해야 할 것..."></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('scheduleModal')">취소</button>
+      <button class="btn btn-primary" onclick="saveScheduleItem()">저장</button>
+      <button class="btn btn-danger" id="schedDeleteBtn" style="display:none;margin-left:auto;" onclick="confirmDeleteScheduleItem()">삭제</button>
+    </div>
+  </div>
+</div>
+
+<!-- Schedule Delete Modal -->
+<div class="modal-overlay" id="schedDeleteModal">
+  <div class="modal" style="max-width:380px;text-align:center;">
+    <div style="font-size:48px;margin-bottom:12px;">🗑️</div>
+    <div class="modal-title" style="text-align:center;">일정 삭제</div>
+    <p style="font-size:14px;color:var(--text-light);margin-bottom:8px;line-height:1.6;">
+      <strong id="schedDeleteName"></strong> 일정을 삭제할까요?
+    </p>
+    <p style="font-size:12px;color:var(--danger);margin-bottom:20px;">이 작업은 되돌릴 수 없습니다.</p>
+    <div style="display:flex;gap:10px;">
+      <button class="btn" style="flex:1;" onclick="closeModal('schedDeleteModal')">취소</button>
+      <button class="btn btn-danger" style="flex:1;" id="schedDeleteConfirmBtn">삭제</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 

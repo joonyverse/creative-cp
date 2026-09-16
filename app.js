@@ -21,11 +21,11 @@ if (typeof supabase !== 'undefined') {
     const monthParam = params.get('month');
     const dateParam = params.get('date');
     
-    if (tabParam && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics'].includes(tabParam)) {
+    if (tabParam && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics', 'schedule'].includes(tabParam)) {
       startPage = tabParam;
     } else {
       const savedPage = localStorage.getItem('creative_cp_active_page');
-      if (savedPage && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics'].includes(savedPage)) {
+      if (savedPage && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics', 'schedule'].includes(savedPage)) {
         startPage = savedPage;
       }
     }
@@ -45,7 +45,7 @@ if (typeof supabase !== 'undefined') {
   } catch(e) {}
   
   // Update DOM classes immediately (to avoid visual flash during loading)
-  const pageMap = {dashboard:0, logs:1, matrix:2, projects:3, members:4, analytics:5};
+  const pageMap = {dashboard:0, logs:1, matrix:2, projects:3, members:4, analytics:5, schedule:6};
   const tabs = document.querySelectorAll('.tabs .tab');
   if (tabs && tabs.length > 0) {
     tabs.forEach(t => t.classList.remove('active'));
@@ -83,20 +83,24 @@ async function loadFromShared() {
     return null;
   }
   try {
-    const [mRes, pRes, lRes] = await Promise.all([
+    const [mRes, pRes, lRes, sRes] = await Promise.all([
       supabaseClient.from('members').select('*').order('sort_order', { ascending: true }),
       supabaseClient.from('projects').select('*').order('sort_order', { ascending: true }),
-      supabaseClient.from('logs').select('*')
+      supabaseClient.from('logs').select('*'),
+      supabaseClient.from('schedules').select('*').order('sort_order', { ascending: true })
     ]);
     
     if (mRes.error) throw mRes.error;
     if (pRes.error) throw pRes.error;
     if (lRes.error) throw lRes.error;
+    // schedules table may not exist yet — gracefully handle
+    const schedules = (sRes.error) ? [] : (sRes.data || []);
     
     return {
       members: mRes.data || [],
       projects: pRes.data || [],
       logs: lRes.data || [],
+      schedules: schedules,
       _lastModified: new Date().toISOString(),
       _lastModifiedBy: currentUser || '알 수 없음'
     };
@@ -114,28 +118,34 @@ async function saveToShared(newData) {
     newData._lastModifiedBy = currentUser || '알 수 없음';
     
     // 1. Fetch current database IDs to determine deletions
-    const [dbMem, dbProj, dbLog] = await Promise.all([
+    const [dbMem, dbProj, dbLog, dbSched] = await Promise.all([
       supabaseClient.from('members').select('id'),
       supabaseClient.from('projects').select('id'),
-      supabaseClient.from('logs').select('id')
+      supabaseClient.from('logs').select('id'),
+      supabaseClient.from('schedules').select('id')
     ]);
 
     if (dbMem.error) throw dbMem.error;
     if (dbProj.error) throw dbProj.error;
     if (dbLog.error) throw dbLog.error;
+    // schedules table may not exist yet
+    const dbSchedData = dbSched.error ? [] : (dbSched.data || []);
 
     const dbMemIds = dbMem.data.map(m => m.id);
     const dbProjIds = dbProj.data.map(p => p.id);
     const dbLogIds = dbLog.data.map(l => l.id);
+    const dbSchedIds = dbSchedData.map(s => s.id);
 
     const localMemIds = newData.members.map(m => m.id);
     const localProjIds = newData.projects.map(p => p.id);
     const localLogIds = newData.logs.map(l => l.id);
+    const localSchedIds = (newData.schedules || []).map(s => s.id);
 
     // 2. Identify deletions
     const delMemIds = dbMemIds.filter(id => !localMemIds.includes(id));
     const delProjIds = dbProjIds.filter(id => !localProjIds.includes(id));
     const delLogIds = dbLogIds.filter(id => !localLogIds.includes(id));
+    const delSchedIds = dbSchedIds.filter(id => !localSchedIds.includes(id));
 
     // 3. Execute deletes
     const deletePromises = [];
@@ -147,6 +157,9 @@ async function saveToShared(newData) {
     }
     if (delMemIds.length > 0) {
       deletePromises.push(supabaseClient.from('members').delete().in('id', delMemIds));
+    }
+    if (delSchedIds.length > 0) {
+      deletePromises.push(supabaseClient.from('schedules').delete().in('id', delSchedIds));
     }
     if (deletePromises.length > 0) {
       await Promise.all(deletePromises);
@@ -207,6 +220,22 @@ async function saveToShared(newData) {
         const chunk = formattedLogs.slice(i, i + chunkSize);
         upsertPromises.push(supabaseClient.from('logs').upsert(chunk));
       }
+    }
+
+    // Format and upsert schedules
+    const formattedSchedules = (newData.schedules || []).map((s, idx) => ({
+      id: s.id,
+      projectId: s.projectId || '',
+      title: s.title || '',
+      start: s.start || '',
+      end: s.end || '',
+      status: s.status || 'todo',
+      owner: s.owner || '',
+      note: s.note || '',
+      sort_order: idx
+    }));
+    if (formattedSchedules.length > 0) {
+      upsertPromises.push(supabaseClient.from('schedules').upsert(formattedSchedules));
     }
 
     if (upsertPromises.length > 0) {
@@ -286,6 +315,7 @@ function renderCurrentPage() {
   else if (currentPage === 'projects') renderProjects();
   else if (currentPage === 'members') renderMembersPage();
   else if (currentPage === 'analytics') renderAnalytics();
+  else if (currentPage === 'schedule') renderSchedulePage();
 }
 
 // ===================== USER IDENTITY =====================
@@ -352,6 +382,7 @@ function getDefaultData() {
       {id:'p3',name:'프로젝트 감마',status:'진행중',pd:'m10',pl:'m11',members:['m12','m13','m14'],priority:'보통'},
     ],
     logs: [],
+    schedules: [],
     _lastModified: null,
     _lastModifiedBy: null
   };
@@ -439,7 +470,7 @@ function showPage(name) {
   const targetPage = document.getElementById('page-' + name);
   if (targetPage) targetPage.classList.add('active');
   const tabs = document.querySelectorAll('.tab');
-  const pageMap = {dashboard:0, logs:1, matrix:2, projects:3, members:4, analytics:5};
+  const pageMap = {dashboard:0, logs:1, matrix:2, projects:3, members:4, analytics:5, schedule:6};
   if (tabs[pageMap[name]]) tabs[pageMap[name]].classList.add('active');
   
   // Sync page state to URL query parameters
@@ -3656,6 +3687,7 @@ async function init() {
       if (!data.logs) data.logs = [];
       if (!data.members) data.members = [];
       if (!data.projects) data.projects = [];
+      if (!data.schedules) data.schedules = [];
     } else {
       console.log('No valid remote data, using defaults');
       data = getDefaultData();
@@ -3720,11 +3752,11 @@ async function init() {
   try {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
-    if (tabParam && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics'].includes(tabParam)) {
+    if (tabParam && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics', 'schedule'].includes(tabParam)) {
       startPage = tabParam;
     } else {
       const savedPage = localStorage.getItem('creative_cp_active_page');
-      if (savedPage && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics'].includes(savedPage)) {
+      if (savedPage && ['dashboard', 'logs', 'matrix', 'projects', 'members', 'analytics', 'schedule'].includes(savedPage)) {
         startPage = savedPage;
       }
     }
@@ -3739,6 +3771,640 @@ async function init() {
   startAutoRefresh();
 }
 
+// ===================== SCHEDULE TAB =====================
+
+let scheduleView = 'gantt';
+let scheduleVisible = {};  // projectId -> true/false
+let scheduleHideDone = false;
+let scheduleDeliveryDate = '';
+const SCHED_STATUS_NAMES = { done: '완료', doing: '진행 중', todo: '예정', risk: '확인 필요' };
+const SCHED_DAY_W = 12;
+
+function schedUid() { return 's' + Math.random().toString(36).slice(2, 9); }
+function schedPd(s) { const p = String(s).split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+function schedFmt(s) { const d = schedPd(s); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일'; }
+function schedFmtShort(s) { const d = schedPd(s); return (d.getMonth() + 1) + '.' + d.getDate(); }
+function schedToday() { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+function schedIso(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function schedEsc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+function schedTint(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+function getScheduleItems() { return data.schedules || []; }
+
+function getScheduleShown() {
+  return getScheduleItems().filter(i => {
+    if (Object.keys(scheduleVisible).length > 0 && !scheduleVisible[i.projectId]) return false;
+    if (scheduleHideDone && i.status === 'done') return false;
+    return true;
+  });
+}
+
+function schedByDate(a, b) {
+  if (a.start !== b.start) return a.start < b.start ? -1 : 1;
+  return 0;
+}
+
+function getScheduleProjects() {
+  const projectIds = [...new Set(getScheduleItems().map(i => i.projectId).filter(Boolean))];
+  return projectIds.map(pid => {
+    const p = getProject(pid);
+    return p ? { id: p.id, name: p.name, color: p.color || '#4361ee' }
+             : { id: pid, name: pid, color: '#999' };
+  });
+}
+
+// Delivery date
+function onScheduleDeliveryDateChange() {
+  const el = document.getElementById('schedDeliveryDate');
+  if (el) {
+    scheduleDeliveryDate = el.value;
+    try { localStorage.setItem('creative_cp_schedule_delivery', scheduleDeliveryDate); } catch(e) {}
+    renderScheduleDeliveryHeader();
+    if (scheduleView === 'gantt') renderScheduleGantt();
+  }
+}
+
+function renderScheduleDeliveryHeader() {
+  const ddayEl = document.getElementById('schedDday');
+  const ddayLabelEl = document.getElementById('schedDdayLabel');
+  if (!ddayEl || !ddayLabelEl) return;
+  if (!scheduleDeliveryDate) {
+    ddayEl.textContent = '—';
+    ddayLabelEl.textContent = '미설정';
+    return;
+  }
+  const diff = Math.round((schedPd(scheduleDeliveryDate) - schedToday()) / 86400000);
+  if (diff > 0) {
+    ddayEl.textContent = `D-${diff}`;
+    ddayLabelEl.textContent = `${diff}일`;
+  } else if (diff === 0) {
+    ddayEl.textContent = 'D-Day';
+    ddayLabelEl.textContent = '오늘';
+  } else {
+    ddayEl.textContent = `D+${Math.abs(diff)}`;
+    ddayLabelEl.textContent = `${Math.abs(diff)}일 지남`;
+  }
+}
+
+// Main render entry
+function renderSchedulePage() {
+  if (!data.schedules) data.schedules = [];
+  
+  // Load delivery date from localStorage
+  if (!scheduleDeliveryDate) {
+    try { scheduleDeliveryDate = localStorage.getItem('creative_cp_schedule_delivery') || ''; } catch(e) {}
+  }
+  const deliveryInput = document.getElementById('schedDeliveryDate');
+  if (deliveryInput && scheduleDeliveryDate) deliveryInput.value = scheduleDeliveryDate;
+  
+  // Initialize visibility map
+  if (Object.keys(scheduleVisible).length === 0) {
+    getScheduleProjects().forEach(p => { scheduleVisible[p.id] = true; });
+  }
+  
+  // Populate schedule modal project select
+  const schedProjEl = document.getElementById('schedProject');
+  if (schedProjEl) {
+    const currentVal = schedProjEl.value;
+    schedProjEl.innerHTML = '<option value="">선택...</option>';
+    data.projects.forEach(p => {
+      schedProjEl.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+    });
+    if (currentVal) schedProjEl.value = currentVal;
+  }
+  
+  renderScheduleDeliveryHeader();
+  renderScheduleReadout();
+  renderScheduleFilterChips();
+  renderScheduleRiskCount();
+  
+  if (scheduleView === 'gantt') renderScheduleGantt();
+  else if (scheduleView === 'list') renderScheduleList();
+  else if (scheduleView === 'risk') renderScheduleRisk();
+}
+
+// View toggle
+function setScheduleView(v) {
+  scheduleView = v;
+  const btnG = document.getElementById('btnSchedGantt');
+  const btnL = document.getElementById('btnSchedList');
+  const btnR = document.getElementById('btnSchedRisk');
+  [btnG, btnL, btnR].forEach(b => {
+    if (b) { b.className = 'btn btn-sm'; b.style.cssText = 'background:#f0f4ff;color:var(--primary);border:1px solid #c7d2fe;'; }
+  });
+  const active = v === 'gantt' ? btnG : v === 'list' ? btnL : btnR;
+  if (active) { active.className = 'btn btn-sm btn-primary'; active.style.cssText = ''; }
+  
+  document.getElementById('schedGanttWrap').style.display = v === 'gantt' ? '' : 'none';
+  document.getElementById('schedListWrap').style.display = v === 'list' ? '' : 'none';
+  document.getElementById('schedRiskWrap').style.display = v === 'risk' ? '' : 'none';
+  
+  renderSchedulePage();
+}
+
+// Filter chips
+function renderScheduleFilterChips() {
+  const el = document.getElementById('schedFilterChips');
+  if (!el) return;
+  const projects = getScheduleProjects();
+  el.innerHTML = '';
+  projects.forEach(p => {
+    const isActive = scheduleVisible[p.id] !== false;
+    const btn = document.createElement('button');
+    btn.className = 'sched-chip' + (isActive ? ' active' : '');
+    btn.dataset.projectId = p.id;
+    btn.innerHTML = `<span class="sched-chip-dot" style="background:${p.color}"></span>${schedEsc(p.name)}`;
+    btn.onclick = () => toggleScheduleFilter(p.id);
+    el.appendChild(btn);
+  });
+}
+
+function toggleScheduleFilter(projectId) {
+  scheduleVisible[projectId] = !scheduleVisible[projectId];
+  renderSchedulePage();
+}
+
+function toggleScheduleHideDone() {
+  scheduleHideDone = !scheduleHideDone;
+  const btn = document.getElementById('schedHideDone');
+  if (btn) btn.classList.toggle('active', scheduleHideDone);
+  renderSchedulePage();
+}
+
+function renderScheduleRiskCount() {
+  const risks = getScheduleItems().filter(i => i.status === 'risk');
+  const el = document.getElementById('schedRiskCount');
+  if (el) el.textContent = risks.length ? risks.length : '';
+}
+
+// Readout (progress cards per project)
+function renderScheduleReadout() {
+  const el = document.getElementById('schedReadout');
+  if (!el) return;
+  const projects = getScheduleProjects();
+  const t0 = schedToday();
+  el.innerHTML = '';
+  
+  if (projects.length === 0) {
+    el.innerHTML = '<div class="sched-empty"><div class="sched-empty-icon">📅</div>일정을 추가하려면 위 버튼을 누르세요</div>';
+    return;
+  }
+  
+  projects.forEach(p => {
+    const all = getScheduleItems().filter(i => i.projectId === p.id);
+    const done = all.filter(i => i.status === 'done').length;
+    const open = all.filter(i => i.status !== 'done').sort(schedByDate);
+    const nx = open[0];
+    const dd = nx ? Math.round((schedPd(nx.start) - t0) / 86400000) : null;
+    const hot = nx && (nx.status === 'risk' || dd <= 5);
+    const pct = all.length ? Math.round(done / all.length * 100) : 0;
+    
+    const card = document.createElement('div');
+    card.className = 'sched-ro-card';
+    card.innerHTML = `
+      <div class="sched-ro-name"><span class="sched-ro-dot" style="background:${p.color}"></span>${schedEsc(p.name)}</div>
+      <div class="sched-ro-next" title="${nx ? schedEsc(nx.title) : ''}">${nx ? schedEsc(nx.title) : '모두 완료'}</div>
+      <div class="sched-ro-when${hot ? ' hot' : ''}">
+        ${nx ? schedFmt(nx.start) + (dd < 0 ? ' · 지남' : dd === 0 ? ' · 오늘' : ' · D-' + dd) : '—'}
+      </div>
+      <div class="sched-ro-bar"><span style="width:${pct}%;background:${p.color}"></span></div>
+    `;
+    el.appendChild(card);
+  });
+}
+
+// ===================== GANTT CHART =====================
+function getScheduleGanttRange() {
+  const items = getScheduleItems();
+  if (items.length === 0) {
+    const t = schedToday();
+    return {
+      g0: new Date(t.getFullYear(), t.getMonth(), 1),
+      g1: new Date(t.getFullYear(), t.getMonth() + 3, 0)
+    };
+  }
+  let min = items[0].start, max = items[0].start;
+  items.forEach(i => {
+    if (i.start < min) min = i.start;
+    if (i.start > max) max = i.start;
+    if (i.end && i.end > max) max = i.end;
+  });
+  if (scheduleDeliveryDate && scheduleDeliveryDate > max) max = scheduleDeliveryDate;
+  
+  const d0 = schedPd(min);
+  const d1 = schedPd(max);
+  return {
+    g0: new Date(d0.getFullYear(), d0.getMonth(), 1),
+    g1: new Date(d1.getFullYear(), d1.getMonth() + 1, 14)
+  };
+}
+
+function schedEstTextWidth(s) {
+  let w = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    w += (c > 0x1100 && c < 0xD7FF) ? 11.6 : (c > 0x2F && c < 0x7B) ? 6.6 : 5.2;
+  }
+  return w + 12;
+}
+
+function renderScheduleGantt() {
+  const canvas = document.getElementById('schedCanvas');
+  if (!canvas) return;
+  canvas.innerHTML = '';
+  
+  const items = getScheduleShown();
+  const projects = getScheduleProjects().filter(p => scheduleVisible[p.id] !== false);
+  
+  if (items.length === 0) {
+    canvas.style.width = '100%';
+    const totalItems = (data.schedules || []).length;
+    if (totalItems === 0) {
+      canvas.innerHTML = `
+        <div class="sched-empty">
+          <div class="sched-empty-icon">📊</div>
+          <div>등록된 납품 일정이 없습니다.</div>
+          <div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">참고 파일(ref/samwoo-50-schedule.html)의 69개 일정을 DB로 마이그레이션할 수 있습니다.</div>
+          <button class="btn btn-primary" onclick="migrateSamwooSeedData()" style="margin-top:16px; font-weight:600; padding:10px 18px;">
+            🚀 삼우 50주년 시드 데이터 DB 마이그레이션 (69개)
+          </button>
+        </div>`;
+    } else {
+      canvas.innerHTML = '<div class="sched-empty"><div class="sched-empty-icon">📊</div>선택한 필터 조건에 해당하는 일정이 없습니다</div>';
+    }
+    return;
+  }
+  
+  const { g0, g1 } = getScheduleGanttRange();
+  const TOTAL = Math.round((g1 - g0) / 86400000) + 1;
+  canvas.style.width = (TOTAL * SCHED_DAY_W) + 'px';
+  
+  function gx(s) { return Math.round((schedPd(s) - g0) / 86400000) * SCHED_DAY_W; }
+  
+  // Scale bar (months + weeks)
+  const scale = document.createElement('div');
+  scale.className = 'sched-scale';
+  let m = new Date(g0);
+  while (m < g1) {
+    const next = new Date(m.getFullYear(), m.getMonth() + 1, 1);
+    const s = m > g0 ? m : g0;
+    const e = next < g1 ? next : g1;
+    const mo = document.createElement('div');
+    mo.className = 'sched-mo';
+    mo.style.left = Math.round((s - g0) / 86400000) * SCHED_DAY_W + 'px';
+    mo.style.width = Math.round((e - s) / 86400000) * SCHED_DAY_W + 'px';
+    mo.textContent = (m.getMonth() + 1) + '월';
+    scale.appendChild(mo);
+    m = next;
+  }
+  let d = new Date(g0);
+  while (d.getDay() !== 1) d.setDate(d.getDate() + 1);
+  while (d < g1) {
+    const wk = document.createElement('div');
+    wk.className = 'sched-wk';
+    wk.style.left = Math.round((d - g0) / 86400000) * SCHED_DAY_W + 'px';
+    wk.style.width = (7 * SCHED_DAY_W) + 'px';
+    wk.textContent = d.getDate();
+    scale.appendChild(wk);
+    d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7);
+  }
+  canvas.appendChild(scale);
+  
+  // Tracks (grouped by project)
+  const RISK_COLOR = '#ef476f';
+  const RISK_DARK = '#c02650';
+  
+  projects.forEach(proj => {
+    const trackItems = items.filter(i => i.projectId === proj.id).sort(schedByDate);
+    if (trackItems.length === 0) return;
+    
+    const wrap = document.createElement('div');
+    wrap.className = 'sched-trk';
+    
+    const head = document.createElement('div');
+    head.className = 'sched-trk-head';
+    const allTrack = getScheduleItems().filter(i => i.projectId === proj.id);
+    const doneN = allTrack.filter(i => i.status === 'done').length;
+    head.innerHTML = `<span><span class="sched-trk-bar" style="background:${proj.color}"></span>${schedEsc(proj.name)} <em>${doneN}/${allTrack.length}</em></span>`;
+    wrap.appendChild(head);
+    
+    const lanes = document.createElement('div');
+    lanes.className = 'sched-lanes';
+    const packed = [];
+    
+    trackItems.forEach(it => {
+      const s = gx(it.start);
+      const barEnd = it.end ? gx(it.end) + SCHED_DAY_W : s;
+      const isBar = !!it.end && (barEnd - s) > SCHED_DAY_W;
+      const lw = schedEstTextWidth(it.title);
+      const solid = (it.status === 'doing' || it.status === 'risk');
+      const inside = isBar && solid && (barEnd - s) > lw + 18;
+      const occupyEnd = inside ? barEnd : barEnd + lw + 8;
+      
+      let li = 0;
+      while (true) {
+        if (!packed[li]) packed[li] = [];
+        const ok = packed[li].every(o => o.e + 10 <= s || o.s >= occupyEnd + 10);
+        if (ok) { packed[li].push({ s, e: occupyEnd }); break; }
+        li++;
+      }
+      
+      const node = document.createElement('div');
+      node.className = 'sched-item ' + it.status;
+      node.style.left = s + 'px';
+      node.style.top = (li * 22) + 'px';
+      node.dataset.schedId = it.id;
+      node.tabIndex = 0;
+      node.title = schedEsc(proj.name) + ' · ' + schedFmt(it.start) + (it.end ? ' ~ ' + schedFmt(it.end) : '') + ' · ' + SCHED_STATUS_NAMES[it.status] + (it.note ? '\n\n' + it.note : '');
+      
+      const col = proj.color;
+      const ring = `;box-shadow:inset 0 0 0 1.5px ${col}`;
+      
+      if (isBar) {
+        const w2 = barEnd - s;
+        let fill, extra = '';
+        if (it.status === 'risk') {
+          fill = `repeating-linear-gradient(45deg,${RISK_COLOR},${RISK_COLOR} 4px,${RISK_DARK} 4px,${RISK_DARK} 8px)`;
+        } else if (it.status === 'doing') {
+          fill = col;
+        } else if (it.status === 'done') {
+          fill = schedTint(col, 0.28);
+          extra = `;box-shadow:inset 0 0 0 1px ${schedTint(col, 0.55)}`;
+        } else {
+          fill = '#fff';
+          extra = ring;
+        }
+        node.innerHTML = `<div class="sched-bar ${it.status}" style="width:${w2}px;background:${fill}${extra}">` +
+          (inside ? `<span class="sched-lab inbar">${schedEsc(it.title)}</span>` : '') + '</div>' +
+          (inside ? '' : `<span class="sched-lab">${schedEsc(it.title)}</span>`);
+      } else {
+        let mf, mx = '';
+        if (it.status === 'risk') { mf = RISK_COLOR; }
+        else if (it.status === 'done') { mf = schedTint(col, 0.38); mx = `;box-shadow:inset 0 0 0 1px ${schedTint(col, 0.6)}`; }
+        else if (it.status === 'todo') { mf = '#fff'; mx = ring; }
+        else { mf = col; }
+        node.innerHTML = `<div class="sched-milestone" style="background:${mf}${mx}"></div>` +
+          `<span class="sched-lab">${schedEsc(it.title)}</span>`;
+      }
+      
+      node.onclick = () => openScheduleModal(it.id);
+      lanes.appendChild(node);
+    });
+    
+    lanes.style.height = (packed.length * 22 + 8) + 'px';
+    wrap.appendChild(lanes);
+    canvas.appendChild(wrap);
+  });
+  
+  // Overlay: today line + delivery line
+  const ov = document.createElement('div');
+  ov.className = 'sched-overlay';
+  
+  const todayStr = schedIso(schedToday());
+  const todayX = gx(todayStr);
+  if (todayX >= 0 && todayX <= TOTAL * SCHED_DAY_W) {
+    const tl = document.createElement('div');
+    tl.className = 'sched-today-line';
+    tl.style.left = todayX + 'px';
+    tl.innerHTML = '<b>오늘</b>';
+    ov.appendChild(tl);
+  }
+  
+  if (scheduleDeliveryDate) {
+    const dlX = gx(scheduleDeliveryDate) + SCHED_DAY_W;
+    if (dlX >= 0 && dlX <= TOTAL * SCHED_DAY_W) {
+      const dl = document.createElement('div');
+      dl.className = 'sched-deadline-line';
+      dl.style.left = dlX + 'px';
+      const dd = schedPd(scheduleDeliveryDate);
+      dl.innerHTML = `<b>${dd.getMonth() + 1}.${dd.getDate()} 납품</b>`;
+      ov.appendChild(dl);
+    }
+  }
+  
+  canvas.appendChild(ov);
+  
+  // Auto-scroll to today
+  setTimeout(() => {
+    const sc = document.getElementById('schedScroller');
+    if (sc) sc.scrollLeft = Math.max(0, todayX - 260);
+  }, 100);
+}
+
+// ===================== LIST VIEW =====================
+function renderScheduleList() {
+  const el = document.getElementById('schedListWrap');
+  if (!el) return;
+  el.innerHTML = '';
+  
+  const items = getScheduleShown();
+  const projects = getScheduleProjects().filter(p => scheduleVisible[p.id] !== false);
+  
+  if (items.length === 0) {
+    el.innerHTML = '<div class="sched-empty"><div class="sched-empty-icon">📋</div>표시할 일정이 없습니다. 위 필터를 확인해 보세요.</div>';
+    return;
+  }
+  
+  projects.forEach(proj => {
+    const trackItems = items.filter(i => i.projectId === proj.id).sort(schedByDate);
+    if (trackItems.length === 0) return;
+    
+    const group = document.createElement('div');
+    group.className = 'sched-list-group';
+    
+    const header = document.createElement('div');
+    header.className = 'sched-list-group-header';
+    header.innerHTML = `<span class="sched-trk-bar" style="background:${proj.color}"></span>${schedEsc(proj.name)}`;
+    group.appendChild(header);
+    
+    trackItems.forEach(it => {
+      const row = document.createElement('div');
+      row.className = 'sched-list-row ' + it.status;
+      row.innerHTML = `
+        <span class="sched-list-date">${schedFmtShort(it.start)}${it.end ? '–' + schedFmtShort(it.end) : ''}</span>
+        <span class="sched-list-title">${schedEsc(it.title)}${it.owner ? '<span class="sched-owner-tag">' + schedEsc(it.owner) + '</span>' : ''}${it.note ? '<small>' + schedEsc(it.note) + '</small>' : ''}</span>
+        <span class="sched-status ${it.status}">${SCHED_STATUS_NAMES[it.status]}</span>
+      `;
+      row.onclick = () => openScheduleModal(it.id);
+      group.appendChild(row);
+    });
+    
+    el.appendChild(group);
+  });
+}
+
+// ===================== RISK VIEW =====================
+function renderScheduleRisk() {
+  const el = document.getElementById('schedRiskWrap');
+  if (!el) return;
+  el.innerHTML = '';
+  
+  const allItems = getScheduleItems();
+  const risks = allItems.filter(i => i.status === 'risk').sort(schedByDate);
+  const t0 = schedToday();
+  
+  // Summary card
+  const summary = document.createElement('div');
+  summary.className = 'sched-risk-summary';
+  
+  const soon = risks.filter(i => {
+    const dd = Math.round((schedPd(i.start) - t0) / 86400000);
+    return dd <= 14;
+  }).slice(0, 5);
+  
+  summary.innerHTML = `
+    <h3>⚠️ 2주 안에 막히면 일정이 깨지는 지점</h3>
+    <p>아래 날짜는 납품일에서 거꾸로 계산한 마지막 시점입니다.</p>
+  `;
+  
+  const nowGrid = document.createElement('div');
+  nowGrid.className = 'sched-risk-now';
+  
+  if (soon.length === 0) {
+    nowGrid.innerHTML = '<div class="sched-risk-now-item"><b>—</b><div class="sched-risk-detail">2주 안에 걸린 마감이 없습니다.</div></div>';
+  } else {
+    soon.forEach(i => {
+      const dd = Math.round((schedPd(i.start) - t0) / 86400000);
+      const proj = getProject(i.projectId);
+      const projName = proj ? proj.name : '';
+      const projColor = proj ? (proj.color || '#999') : '#999';
+      const item = document.createElement('div');
+      item.className = 'sched-risk-now-item';
+      item.style.cursor = 'pointer';
+      item.innerHTML = `
+        <b>${schedFmtShort(i.start)}<br>${dd < 0 ? '지남' : dd === 0 ? '오늘' : 'D-' + dd}</b>
+        <div class="sched-risk-detail">${schedEsc(i.title)} <span class="sched-risk-project-tag" style="color:${projColor}">${schedEsc(projName)}</span>${i.note ? '<small>' + schedEsc(i.note) + '</small>' : ''}</div>
+      `;
+      item.onclick = () => openScheduleModal(i.id);
+      nowGrid.appendChild(item);
+    });
+  }
+  summary.appendChild(nowGrid);
+  el.appendChild(summary);
+  
+  // Full risk list grouped by project
+  if (risks.length > 0) {
+    const projects = getScheduleProjects();
+    projects.forEach(proj => {
+      const projRisks = risks.filter(i => i.projectId === proj.id);
+      if (projRisks.length === 0) return;
+      
+      const group = document.createElement('div');
+      group.className = 'sched-list-group';
+      const header = document.createElement('div');
+      header.className = 'sched-list-group-header';
+      header.innerHTML = `<span class="sched-trk-bar" style="background:${proj.color}"></span>${schedEsc(proj.name)}`;
+      group.appendChild(header);
+      
+      projRisks.forEach(it => {
+        const row = document.createElement('div');
+        row.className = 'sched-list-row risk';
+        row.innerHTML = `
+          <span class="sched-list-date">${schedFmtShort(it.start)}${it.end ? '–' + schedFmtShort(it.end) : ''}</span>
+          <span class="sched-list-title">${schedEsc(it.title)}${it.owner ? '<span class="sched-owner-tag">' + schedEsc(it.owner) + '</span>' : ''}${it.note ? '<small>' + schedEsc(it.note) + '</small>' : ''}</span>
+          <span class="sched-status risk">${SCHED_STATUS_NAMES.risk}</span>
+        `;
+        row.onclick = () => openScheduleModal(it.id);
+        group.appendChild(row);
+      });
+      
+      el.appendChild(group);
+    });
+  }
+}
+
+// ===================== SCHEDULE CRUD =====================
+function openScheduleModal(id) {
+  const item = id ? getScheduleItems().find(i => i.id === id) : null;
+  document.getElementById('editScheduleId').value = item ? item.id : '';
+  document.getElementById('schedModalTitle').textContent = item ? '📅 일정 수정' : '📅 일정 추가';
+  document.getElementById('schedDeleteBtn').style.display = item ? '' : 'none';
+  
+  // Populate project select
+  const projSelect = document.getElementById('schedProject');
+  if (projSelect) {
+    projSelect.innerHTML = '<option value="">선택...</option>';
+    data.projects.forEach(p => {
+      projSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+    });
+  }
+  
+  document.getElementById('schedTitle').value = item ? item.title : '';
+  document.getElementById('schedProject').value = item ? item.projectId : '';
+  document.getElementById('schedStatus').value = item ? item.status : 'todo';
+  document.getElementById('schedStart').value = item ? item.start : today();
+  document.getElementById('schedEnd').value = item ? (item.end || '') : '';
+  document.getElementById('schedOwner').value = item ? (item.owner || '') : '';
+  document.getElementById('schedNote').value = item ? (item.note || '') : '';
+  
+  document.getElementById('scheduleModal').classList.add('open');
+  setTimeout(() => document.getElementById('schedTitle').focus(), 10);
+}
+
+async function saveScheduleItem() {
+  const title = document.getElementById('schedTitle').value.trim();
+  const start = document.getElementById('schedStart').value;
+  if (!title) { document.getElementById('schedTitle').focus(); showToast('⚠️ 내용을 입력해주세요'); return; }
+  if (!start) { document.getElementById('schedStart').focus(); showToast('⚠️ 시작일을 선택해주세요'); return; }
+  
+  const end = document.getElementById('schedEnd').value;
+  if (end && end < start) { showToast('⚠️ 종료일이 시작일보다 빠릅니다'); return; }
+  
+  const editId = document.getElementById('editScheduleId').value;
+  const rec = {
+    id: editId || schedUid(),
+    projectId: document.getElementById('schedProject').value,
+    title: title,
+    start: start,
+    end: end || '',
+    status: document.getElementById('schedStatus').value,
+    owner: document.getElementById('schedOwner').value.trim(),
+    note: document.getElementById('schedNote').value.trim()
+  };
+  
+  if (editId) {
+    data.schedules = data.schedules.map(i => i.id === editId ? rec : i);
+  } else {
+    data.schedules.push(rec);
+  }
+  
+  closeModal('scheduleModal');
+  renderSchedulePage();
+  await save();
+  showToast(editId ? '✅ 일정이 수정되었습니다' : '✅ 일정이 등록되었습니다');
+}
+
+let pendingDeleteScheduleId = null;
+function confirmDeleteScheduleItem() {
+  const editId = document.getElementById('editScheduleId').value;
+  if (!editId) return;
+  const item = getScheduleItems().find(i => i.id === editId);
+  if (!item) return;
+  
+  pendingDeleteScheduleId = editId;
+  document.getElementById('schedDeleteName').textContent = item.title;
+  document.getElementById('schedDeleteConfirmBtn').onclick = executeDeleteScheduleItem;
+  closeModal('scheduleModal');
+  document.getElementById('schedDeleteModal').classList.add('open');
+}
+
+async function executeDeleteScheduleItem() {
+  if (!pendingDeleteScheduleId) return;
+  data.schedules = data.schedules.filter(i => i.id !== pendingDeleteScheduleId);
+  pendingDeleteScheduleId = null;
+  closeModal('schedDeleteModal');
+  renderSchedulePage();
+  await save();
+  showToast('🗑️ 일정이 삭제되었습니다');
+}
+
 init();
 
 // Window resize listener to redraw trend chart on dashboard
@@ -3751,4 +4417,112 @@ window.addEventListener('resize', () => {
     }, 250);
   }
 });
+
+// SEED Data Migration helper for Samwoo 50th Schedules
+async function migrateSamwooSeedData() {
+  const defaultProjects = [
+    { id: 'book', name: '삼우 50주년 브랜드북', status: '진행중', color: '#1B4B73' },
+    { id: 'pkg', name: '삼우 50주년 패키지', status: '진행중', color: '#8A3A22' },
+    { id: 'diary', name: '삼우 50주년 다이어리', status: '진행중', color: '#2F5A3B' },
+    { id: 'cal', name: '삼우 50주년 캘린더', status: '진행중', color: '#573C6B' },
+    { id: 'lamp', name: '삼우 50주년 램프', status: '진행중', color: '#7A5510' }
+  ];
+
+  // Add default projects if missing
+  if (!data.projects) data.projects = [];
+  defaultProjects.forEach(dp => {
+    if (!data.projects.some(p => p.id === dp.id)) {
+      data.projects.push(dp);
+    }
+  });
+
+  const seedRaw = [
+    // 브랜드북
+    {t:"book",s:"2026-07-07",x:"대표 인터뷰 · 임원 5명 대담",st:"done"},
+    {t:"book",s:"2026-07-09",x:"삼우 대면 미팅",st:"done",o:"IB · 삼우",n:"이 자리에서 갑자기 10월 1일 납품을 요청받음. 이후 모든 일정 압박의 출발점."},
+    {t:"book",s:"2026-07-22",x:"대표 인터뷰 · 임원 대담 원고 전달",st:"done"},
+    {t:"book",s:"2026-07-29",x:"세대별 인터뷰 1차 (2명)",st:"done"},
+    {t:"book",s:"2026-07-31",x:"세대별 인터뷰 2차 (4명)",st:"done"},
+    {t:"book",s:"2026-08-05",x:"니켄세케이 도서 레퍼런스 전달",st:"done",o:"삼우 → IB → 에디터"},
+    {t:"book",s:"2026-08-07",x:"발주처 인터뷰 촬영 없이 진행 컨펌",st:"done"},
+    {t:"book",s:"2026-08-11",x:"Partnership · Timeline Part 리스트업 전달",st:"done"},
+    {t:"book",s:"2026-08-11",x:"분야별 인터뷰 원고 전달",st:"done",o:"에디터 → 삼우"},
+    {t:"book",s:"2026-08-14",x:"강동 · 성수 오피스 이미지 수령",st:"done",n:"강동은 재촬영 필요로 회신. 담당 프로 연차로 회신이 밀려 차주 화요일 피드백 예정."},
+    {t:"book",s:"2026-08-14",x:"제작 조건 전달 (샘플비 50~100만 / 샘플 15일 / 본제작 1개월)",st:"done",n:"이때 받은 '본제작 1개월'과 지금 일정표의 '본제작 15일'이 서로 다릅니다. 어느 쪽이 맞는지 서면으로 확약받지 않으면 10/21 제작완료가 성립하지 않습니다."},
+    {t:"book",s:"2026-08-19",x:"원고 컨펌 기반 디자인 착수 메일",st:"done",o:"IB → 삼우"},
+    {t:"book",s:"2026-08-25",e:"2026-08-27",x:"발주처 인터뷰 진행",st:"done"},
+    {t:"book",s:"2026-09-03",x:"10월 내 완료 요청 수신",st:"done",o:"삼우"},
+    {t:"book",s:"2026-09-04",x:"프리랜서 섭외",st:"done"},
+    {t:"book",s:"2026-09-07",x:"프리랜서 OT",st:"done"},
+    {t:"book",s:"2026-09-08",e:"2026-09-22",x:"디자인 작업",st:"doing",o:"IB · 프리랜서"},
+    {t:"book",s:"2026-09-14",x:"Overview '데이터로 보는 삼우' 수정 원고 수령",st:"done",o:"삼우 → IB"},
+    {t:"book",s:"2026-09-14",x:"'연도별 대표 프로젝트' 수정 내용 수령 (삼성의료원 · 평택 캠퍼스)",st:"done",o:"삼우 → IB"},
+    {t:"book",s:"2026-09-14",x:"Timeline '50가지 순간들' 정리본 수령",st:"done",o:"삼우 → IB"},
+    {t:"book",s:"2026-09-15",x:"Culture Part 촬영 — 평택 오피스",st:"todo",n:"삼우 추가 요청분."},
+    {t:"book",s:"2026-09-16",x:"Culture Part 촬영 — 강동 오피스",st:"todo",n:"기존 이미지가 노후되어 재촬영."},
+    {t:"book",s:"2026-09-16",x:"중간 파일 공유",st:"todo",o:"IB → 삼우",n:"9/14 받은 Overview · 연도별 대표 프로젝트 · Timeline 원고를 반영한 상태로 공유."},
+    {t:"book",s:"2026-09-17",e:"2026-09-18",x:"전문가 12명 촬영 (일정 미정)",st:"risk",n:"내지 전달일이 9/22로 확정됐으므로 늦어도 9/18까지 촬영이 끝나야 반영됩니다. 날짜·장소·대상자가 아직 없으니 이번 주 안에 확정하거나, 이 파트를 빼는 쪽으로 결정해야 합니다."},
+    {t:"book",s:"2026-09-22",x:"내지 전달",st:"todo",o:"IB → 삼우"},
+    {t:"book",s:"2026-09-23",x:"삼우 내부 보고 (1차)",st:"todo",o:"삼우",n:"추석 연휴(9/24~27) 직전 마지막 영업일입니다. 이날 나온 피드백은 연휴가 끝나는 9/28부터 반영할 수 있습니다."},
+    {t:"book",s:"2026-09-28",e:"2026-09-30",x:"삼우 내부 보고 (2차)",st:"risk",o:"삼우",n:"이 보고가 9/30에 끝나면 샘플북이 10/1로 밀리고 본출력은 10/6에나 걸립니다(10/5 대체공휴일). 수정 요청이 나올 경우 반영할 시간이 없으므로, 2차 보고는 '확정 보고'로 성격을 정하고 수정은 1차(9/23)에서 끝내는 것이 안전합니다."},
+    {t:"book",s:"2026-10-01",e:"2026-10-02",x:"샘플북 제작 · 전달",st:"todo",n:"2차 보고 종료 직후 착수. 샘플 2일."},
+    {t:"book",s:"2026-10-06",e:"2026-10-21",x:"본출력 (본제작 15일)",st:"risk",n:"10/6~10/21은 달력으로 16일, 영업일로는 11일입니다(10/9 한글날 제외). '15일'이 캘린더일이면 10/21에 딱 맞고, 영업일이면 10/27까지 밀려 납품 전날에야 나옵니다. 제작처에 이 한 줄을 서면으로 확인받아야 합니다."},
+    {t:"book",s:"2026-10-21",x:"제작 완료",st:"todo"},
+    {t:"book",s:"2026-10-28",x:"납품",st:"todo"},
+
+    // 패키지
+    {t:"pkg",s:"2026-08-14",x:"제작 프로세스 안내 수신",st:"done",n:"견적 협의 → 착수금 입금 및 서류·내용물 샘플 전달 → 무지 목업(4~7영업일) → 형태 확정·칼선 전달 → 최종 디자인 파일 출고 → 양산(13~18영업일) → 잔금 입금 → 납품. 착수 시 사업자등록증, 통장사본, 실제 내용물 샘플 필요."},
+    {t:"pkg",s:"2026-09-03",x:"북레스트 패키지 제작비 파악 (150~200만원)",st:"done",n:"이때는 샘플 1주 반~2주, 본품 양산 1개월로 안내받음. 8/14 프로세스 안내의 '양산 13~18영업일'과 다릅니다."},
+    {t:"pkg",s:"2026-09-09",x:"싸바리 형태 추가 요청 (젠틀몬스터 레퍼런스)",st:"done",n:"사양 변경이라 견적과 목업 기준이 바뀝니다. 재견적 없이 넘어가면 양산 단계에서 비용과 일정이 한 번 더 흔들립니다."},
+    {t:"pkg",s:"2026-09-11",e:"2026-09-14",x:"싸바리 반영 최종 견적 협의",st:"risk",o:"IB · 제작처",n:"역산 마감. 여기가 밀리는 만큼 뒤가 그대로 밀립니다."},
+    {t:"pkg",s:"2026-09-14",x:"착수금 입금 + 서류 · 내용물 샘플 전달",st:"risk",o:"IB",n:"내용물 샘플로 브랜드북 실물이 필요한데 샘플북은 10/2에나 나옵니다. 판형·두께·무게가 같은 백지 더미를 만들어 대신 보내야 목업이 돌아갑니다. 램프는 9/11 받은 수정 샘플 실물을 그대로 전달하면 됩니다."},
+    {t:"pkg",s:"2026-09-15",e:"2026-09-22",x:"무지 목업 제작 (4~7영업일)",st:"risk"},
+    {t:"pkg",s:"2026-09-23",x:"형태 확정 + 칼선 수령",st:"risk",n:"추석 연휴 전 마지막 영업일. 넘기면 9/28로 밀립니다."},
+    {t:"pkg",s:"2026-09-28",e:"2026-09-29",x:"패키지 디자인 작업 · 최종 파일 출고",st:"risk"},
+    {t:"pkg",s:"2026-09-30",e:"2026-10-27",x:"양산 (13~18영업일)",st:"risk",n:"18영업일 기준이면 9/30에 걸어야 10/27에 나옵니다. 9/3에 들은 '양산 1개월' 조건이면 10/28 납품은 성립하지 않습니다. 13~18영업일로 서면 확약을 받는 것이 이 트랙의 핵심입니다."},
+    {t:"pkg",s:"2026-10-26",x:"잔금 입금",st:"todo"},
+    {t:"pkg",s:"2026-10-28",x:"납품",st:"todo"},
+
+    // 다이어리
+    {t:"diary",s:"2026-09-16",x:"발주 (데드라인)",st:"risk",n:"디자인 확정본이 이 날 전에 나와야 합니다. 지금 확정 여부가 보드에 없습니다."},
+    {t:"diary",s:"2026-09-16",e:"2026-10-21",x:"제작 (35일)",st:"todo",n:"35일이 캘린더일이면 10/21에 맞습니다. 영업일이면 11월로 넘어가고, 중간에 추석 연휴 4일이 껴 있어 실제 작업일은 더 줄어듭니다. 발주서에 '10/21 입고'를 날짜로 못박으세요."},
+    {t:"diary",s:"2026-10-21",x:"제작 완료",st:"todo"},
+    {t:"diary",s:"2026-10-28",x:"납품",st:"todo"},
+
+    // 캘린더
+    {t:"cal",s:"2026-10-01",x:"발주 (데드라인)",st:"todo",n:"여유가 하루도 없습니다. 10/1을 넘기면 20일 리드타임으로 10/21을 못 맞춥니다."},
+    {t:"cal",s:"2026-10-01",e:"2026-10-21",x:"제작 (20일)",st:"todo"},
+    {t:"cal",s:"2026-10-21",x:"제작 완료",st:"todo"},
+    {t:"cal",s:"2026-10-28",x:"납품",st:"todo"},
+
+    // 램프
+    {t:"lamp",s:"2026-08-21",x:"샘플 2종 제작 요청 (4단 실버 각인 / 4단 블루 각인)",st:"done"},
+    {t:"lamp",s:"2026-08-26",x:"샘플 결제 완료",st:"done"},
+    {t:"lamp",s:"2026-08-26",e:"2026-09-08",x:"샘플 제작 (약 1주 반)",st:"done"},
+    {t:"lamp",s:"2026-09-08",x:"샘플 수령 · 수정 샘플 재요청",st:"done"},
+    {t:"lamp",s:"2026-09-11",x:"수정 샘플 재수령",st:"doing"},
+    {t:"lamp",s:"2026-09-15",x:"삼우 내부 보고",st:"todo"},
+    {t:"lamp",s:"2026-09-16",x:"본 발주 (수량 · 단가 확정)",st:"risk",n:"본 양산 리드타임이 지금 일정표에 아예 없습니다. 샘플이 1주 반 걸렸으니 수량이 붙는 본품은 최소 3~4주로 봐야 합니다. 내부 보고 직후 수량을 확정하고 리드타임을 받아 10/21 입고가 되는지 바로 확인하세요."},
+    {t:"lamp",s:"2026-09-17",e:"2026-10-21",x:"본 양산 (리드타임 미확정)",st:"risk"},
+    {t:"lamp",s:"2026-10-21",x:"제작 완료",st:"todo"},
+    {t:"lamp",s:"2026-10-28",x:"납품",st:"todo"}
+  ];
+
+  data.schedules = seedRaw.map((item, idx) => ({
+    id: `sched-seed-${idx + 1}`,
+    projectId: item.t,
+    title: item.x,
+    start: item.s,
+    end: item.e || '',
+    status: item.st || 'todo',
+    owner: item.o || '',
+    note: item.n || '',
+    sort_order: idx + 1
+  }));
+
+  renderSchedulePage();
+  showToast('🔄 시드 데이터를 DB로 동기화하는 중...');
+  await save();
+  showToast('🎉 69개 납품 일정 데이터가 DB에 마이그레이션되었습니다!');
+}
 
