@@ -4228,8 +4228,7 @@ function renderScheduleGantt() {
       const node = document.createElement('div');
       node.className = 'sched-item ' + it.status;
       node.style.left = s + 'px';
-      // Line 0 is reserved for delivery date dummy row
-      node.style.top = ((li + 1) * 22 + 2) + 'px';
+      node.style.top = (li * 22) + 'px';
       node.dataset.schedId = it.id;
       node.tabIndex = 0;
       node.title = schedEsc(proj.name) + ' · ' + schedFmt(it.start) + (it.end ? ' ~ ' + schedFmt(it.end) : '') + ' · ' + SCHED_STATUS_NAMES[it.status] + (it.note ? '\n\n' + it.note : '');
@@ -4268,7 +4267,10 @@ function renderScheduleGantt() {
       lanes.appendChild(node);
     });
 
-    // Render Track-Specific Delivery Line in dummy line 0
+    lanes.style.height = (packed.length * 22 + 8) + 'px';
+    wrap.appendChild(lanes);
+
+    // Render Track-Specific Delivery Line attached to wrap (.sched-trk) aligned with project header level
     const dlX = gx(pDate) + SCHED_DAY_W;
     if (dlX >= 0 && dlX <= TOTAL * SCHED_DAY_W) {
       const dl = document.createElement('div');
@@ -4276,12 +4278,9 @@ function renderScheduleGantt() {
       dl.style.left = dlX + 'px';
       const dd = schedPd(pDate);
       dl.innerHTML = `<b>🚩 ${dd.getMonth() + 1}.${dd.getDate()} 납품 (${pDdayStr})</b>`;
-      lanes.appendChild(dl);
+      wrap.appendChild(dl);
     }
     
-    // Height includes dummy row (line 0) + packed lines
-    lanes.style.height = ((packed.length + 1) * 22 + 8) + 'px';
-    wrap.appendChild(lanes);
     canvas.appendChild(wrap);
   });
   
