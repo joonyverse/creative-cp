@@ -499,26 +499,10 @@
           <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px;">📅 납품 일정 관리</div>
           <div style="font-size:12px;color:var(--text-light);">프로젝트별 납품 일정과 마일스톤을 간트차트로 관리합니다</div>
         </div>
-        <div class="sched-delivery-info" style="gap:16px; flex-wrap:wrap;">
-          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-            <div style="display:flex; flex-direction:column; gap:2px;">
-              <label style="font-size:10px; color:var(--text-light); font-weight:700;">대상 프로젝트</label>
-              <select id="schedDeliveryProjectSelect" onchange="onScheduleDeliveryProjectSelectChange()" style="padding:5px 8px; border-radius:6px; border:1.5px solid var(--border); font-size:12px; font-weight:600; background:var(--card-bg, #fff);">
-                <option value="all">🌐 전체 프로젝트</option>
-              </select>
-            </div>
-            <div style="display:flex; flex-direction:column; gap:2px;">
-              <label style="font-size:10px; color:var(--text-light); font-weight:700;">기준 납품일</label>
-              <input type="date" id="schedDeliveryDate" onchange="onScheduleDeliveryDateChange()" style="padding:4px 8px; border-radius:6px; border:1.5px solid var(--border); font-size:12px; font-weight:600;">
-            </div>
-            <button class="btn btn-secondary btn-sm" onclick="openScheduleDeliveryModal()" style="margin-top:14px; font-weight:600; padding:5px 10px; font-size:12px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
-              ⚙️ 프로젝트별 납품일 관리
-            </button>
-          </div>
-          <div>
-            <div class="sched-dday" id="schedDday">D-0</div>
-            <div class="sched-dday-meta">납품까지 <b id="schedDdayLabel">0일</b></div>
-          </div>
+        <div class="sched-delivery-info">
+          <button class="btn btn-primary" onclick="openScheduleDeliveryModal()" style="font-weight:600; padding:8px 16px; font-size:13px; border-radius:8px; display:inline-flex; align-items:center; gap:6px;">
+            ⚙️ 프로젝트별 납품일 관리
+          </button>
         </div>
       </div>
     </div>
