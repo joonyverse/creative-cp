@@ -499,12 +499,21 @@
           <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px;">📅 납품 일정 관리</div>
           <div style="font-size:12px;color:var(--text-light);">프로젝트별 납품 일정과 마일스톤을 간트차트로 관리합니다</div>
         </div>
-        <div class="sched-delivery-info">
-          <div>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <label style="font-size:11px;color:var(--text-light);font-weight:700;">기준 납품일</label>
-              <input type="date" id="schedDeliveryDate" onchange="onScheduleDeliveryDateChange()" style="padding:4px 8px;border-radius:6px;border:1.5px solid var(--border);font-size:12px;">
+        <div class="sched-delivery-info" style="gap:16px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <label style="font-size:10px; color:var(--text-light); font-weight:700;">대상 프로젝트</label>
+              <select id="schedDeliveryProjectSelect" onchange="onScheduleDeliveryProjectSelectChange()" style="padding:5px 8px; border-radius:6px; border:1.5px solid var(--border); font-size:12px; font-weight:600; background:var(--card-bg, #fff);">
+                <option value="all">🌐 전체 프로젝트</option>
+              </select>
             </div>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <label style="font-size:10px; color:var(--text-light); font-weight:700;">기준 납품일</label>
+              <input type="date" id="schedDeliveryDate" onchange="onScheduleDeliveryDateChange()" style="padding:4px 8px; border-radius:6px; border:1.5px solid var(--border); font-size:12px; font-weight:600;">
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="openScheduleDeliveryModal()" style="margin-top:14px; font-weight:600; padding:5px 10px; font-size:12px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+              ⚙️ 프로젝트별 납품일 관리
+            </button>
           </div>
           <div>
             <div class="sched-dday" id="schedDday">D-0</div>
@@ -916,6 +925,26 @@
     <div style="display:flex;gap:10px;">
       <button class="btn" style="flex:1;" onclick="closeModal('schedDeleteModal')">취소</button>
       <button class="btn btn-danger" style="flex:1;" id="schedDeleteConfirmBtn">삭제</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project Specific Delivery Date Modal -->
+<div class="modal-overlay" id="schedDeliveryModal">
+  <div class="modal" style="max-width:540px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <div class="modal-title" style="margin:0; font-size:18px;">⚙️ 프로젝트별 기준 납품일 관리</div>
+      <button class="btn-close" onclick="closeModal('schedDeliveryModal')">✕</button>
+    </div>
+    <p style="font-size:13px; color:var(--text-light); margin-bottom:16px; line-height:1.5;">
+      각 프로젝트별 목표 납품일을 개별 지정할 수 있습니다. 미설정 시 기본 공통 납품일이 적용됩니다.
+    </p>
+    <div id="schedDeliveryModalList" style="display:flex; flex-direction:column; gap:12px; max-height:360px; overflow-y:auto; padding-right:4px;">
+      <!-- Dynamically generated per-project date input rows -->
+    </div>
+    <div class="modal-actions" style="margin-top:20px;">
+      <button class="btn" onclick="closeModal('schedDeliveryModal')">취소</button>
+      <button class="btn btn-primary" onclick="saveScheduleDeliveryModal()">저장하기</button>
     </div>
   </div>
 </div>

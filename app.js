@@ -3777,6 +3777,13 @@ let scheduleView = 'gantt';
 let scheduleVisible = {};  // projectId -> true/false
 let scheduleHideDone = false;
 let scheduleDeliveryDate = '2026-10-28';
+let projectDeliveryDates = {}; // projectId -> 'YYYY-MM-DD'
+
+try {
+  const savedPdd = localStorage.getItem('creative_cp_project_delivery_dates');
+  if (savedPdd) projectDeliveryDates = JSON.parse(savedPdd);
+} catch(e) {}
+
 const SCHED_STATUS_NAMES = { done: '완료', doing: '진행 중', todo: '예정', risk: '확인 필요' };
 const SCHED_DAY_W = 12;
 const SCHED_HOLIDAYS = [
@@ -3784,6 +3791,27 @@ const SCHED_HOLIDAYS = [
   { s: '2026-10-03', e: '2026-10-05', n: '개천절·대체' },
   { s: '2026-10-09', e: '2026-10-09', n: '한글날' }
 ];
+
+function getProjectDeliveryDate(projectId) {
+  if (projectId && projectDeliveryDates[projectId]) {
+    return projectDeliveryDates[projectId];
+  }
+  const proj = (data.projects || []).find(p => p.id === projectId);
+  if (proj && proj.deliveryDate) return proj.deliveryDate;
+  return scheduleDeliveryDate || '2026-10-28';
+}
+
+function setProjectDeliveryDate(projectId, dateStr) {
+  if (projectId === 'all') {
+    scheduleDeliveryDate = dateStr;
+    try { localStorage.setItem('creative_cp_schedule_delivery', dateStr); } catch(e) {}
+  } else {
+    projectDeliveryDates[projectId] = dateStr;
+    try { localStorage.setItem('creative_cp_project_delivery_dates', JSON.stringify(projectDeliveryDates)); } catch(e) {}
+    const proj = (data.projects || []).find(p => p.id === projectId);
+    if (proj) proj.deliveryDate = dateStr;
+  }
+}
 
 function schedUid() { return 's' + Math.random().toString(36).slice(2, 9); }
 function schedPd(s) { const p = String(s).split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
@@ -3825,36 +3853,89 @@ function getScheduleProjects() {
   });
 }
 
-// Delivery date
-function onScheduleDeliveryDateChange() {
-  const el = document.getElementById('schedDeliveryDate');
-  if (el) {
-    scheduleDeliveryDate = el.value;
-    try { localStorage.setItem('creative_cp_schedule_delivery', scheduleDeliveryDate); } catch(e) {}
-    renderScheduleDeliveryHeader();
-    if (scheduleView === 'gantt') renderScheduleGantt();
+// Delivery date controls
+function populateScheduleDeliveryProjectSelect() {
+  const select = document.getElementById('schedDeliveryProjectSelect');
+  if (!select) return;
+  const currentVal = select.value || 'all';
+  const projects = getScheduleProjects();
+  select.innerHTML = '<option value="all">🌐 전체 프로젝트 공통</option>';
+  projects.forEach(p => {
+    const pDate = getProjectDeliveryDate(p.id);
+    const diff = Math.round((schedPd(pDate) - schedToday()) / 86400000);
+    const ddayStr = diff > 0 ? `D-${diff}` : diff === 0 ? 'D-Day' : `D+${Math.abs(diff)}`;
+    const hasCustom = !!projectDeliveryDates[p.id];
+    select.innerHTML += `<option value="${p.id}">${hasCustom ? '📌 ' : ''}${p.name} (납품일: ${pDate} · ${ddayStr})</option>`;
+  });
+  select.value = currentVal;
+}
+
+function onScheduleDeliveryProjectSelectChange() {
+  const select = document.getElementById('schedDeliveryProjectSelect');
+  const dateInput = document.getElementById('schedDeliveryDate');
+  if (!select || !dateInput) return;
+  
+  const selectedProjId = select.value;
+  if (selectedProjId === 'all') {
+    dateInput.value = scheduleDeliveryDate || '2026-10-28';
+  } else {
+    dateInput.value = getProjectDeliveryDate(selectedProjId);
   }
+  renderScheduleDeliveryHeader();
+}
+
+function onScheduleDeliveryDateChange() {
+  const select = document.getElementById('schedDeliveryProjectSelect');
+  const dateInput = document.getElementById('schedDeliveryDate');
+  if (!dateInput) return;
+  
+  const newDate = dateInput.value;
+  const targetProjId = select ? select.value : 'all';
+  
+  setProjectDeliveryDate(targetProjId, newDate);
+  
+  populateScheduleDeliveryProjectSelect();
+  renderScheduleDeliveryHeader();
+  renderScheduleReadout();
+  if (scheduleView === 'gantt') renderScheduleGantt();
 }
 
 function renderScheduleDeliveryHeader() {
   const ddayEl = document.getElementById('schedDday');
   const ddayLabelEl = document.getElementById('schedDdayLabel');
+  const select = document.getElementById('schedDeliveryProjectSelect');
   if (!ddayEl || !ddayLabelEl) return;
-  if (!scheduleDeliveryDate) {
-    ddayEl.textContent = '—';
-    ddayLabelEl.textContent = '미설정';
-    return;
-  }
-  const diff = Math.round((schedPd(scheduleDeliveryDate) - schedToday()) / 86400000);
-  if (diff > 0) {
-    ddayEl.textContent = `D-${diff}`;
-    ddayLabelEl.textContent = `${diff}일`;
-  } else if (diff === 0) {
-    ddayEl.textContent = 'D-Day';
-    ddayLabelEl.textContent = '오늘';
+
+  const targetProjId = select ? select.value : 'all';
+  
+  if (targetProjId === 'all') {
+    const targetDate = scheduleDeliveryDate || '2026-10-28';
+    const diff = Math.round((schedPd(targetDate) - schedToday()) / 86400000);
+    if (diff > 0) {
+      ddayEl.textContent = `D-${diff}`;
+      ddayLabelEl.textContent = `공통: ${targetDate} (${diff}일 남음)`;
+    } else if (diff === 0) {
+      ddayEl.textContent = 'D-Day';
+      ddayLabelEl.textContent = `공통: ${targetDate} (오늘 납품)`;
+    } else {
+      ddayEl.textContent = `D+${Math.abs(diff)}`;
+      ddayLabelEl.textContent = `공통: ${targetDate} (${Math.abs(diff)}일 지남)`;
+    }
   } else {
-    ddayEl.textContent = `D+${Math.abs(diff)}`;
-    ddayLabelEl.textContent = `${Math.abs(diff)}일 지남`;
+    const targetDate = getProjectDeliveryDate(targetProjId);
+    const p = getProject(targetProjId);
+    const diff = Math.round((schedPd(targetDate) - schedToday()) / 86400000);
+    const pName = p ? p.name : targetProjId;
+    if (diff > 0) {
+      ddayEl.textContent = `D-${diff}`;
+      ddayLabelEl.textContent = `${pName}: ${diff}일 남음 (${targetDate})`;
+    } else if (diff === 0) {
+      ddayEl.textContent = 'D-Day';
+      ddayLabelEl.textContent = `${pName}: 오늘 납품 (${targetDate})`;
+    } else {
+      ddayEl.textContent = `D+${Math.abs(diff)}`;
+      ddayLabelEl.textContent = `${pName}: ${Math.abs(diff)}일 지남 (${targetDate})`;
+    }
   }
 }
 
@@ -3975,10 +4056,20 @@ function renderScheduleReadout() {
     const hot = nx && (nx.status === 'risk' || dd <= 5);
     const pct = all.length ? Math.round(done / all.length * 100) : 0;
     
+    const pDate = getProjectDeliveryDate(p.id);
+    const pDiff = Math.round((schedPd(pDate) - t0) / 86400000);
+    const pDdayBadge = pDiff > 0 ? `D-${pDiff}` : pDiff === 0 ? 'D-Day' : `D+${Math.abs(pDiff)}`;
+    const hasCustom = !!projectDeliveryDates[p.id];
+
     const card = document.createElement('div');
     card.className = 'sched-ro-card';
     card.innerHTML = `
-      <div class="sched-ro-name"><span class="sched-ro-dot" style="background:${p.color}"></span>${schedEsc(p.name)}</div>
+      <div class="sched-ro-name" style="display:flex; justify-content:space-between; align-items:center;">
+        <div><span class="sched-ro-dot" style="background:${p.color}"></span>${schedEsc(p.name)}</div>
+        <span style="font-size:11px; font-weight:700; color:${pDiff <= 14 ? 'var(--danger)' : 'var(--primary)'}; background:rgba(67,97,238,0.08); padding:2px 6px; border-radius:4px;" title="기준 납품일: ${pDate}">
+          ${hasCustom ? '📌 ' : ''}${pDdayBadge} (${schedFmtShort(pDate)})
+        </span>
+      </div>
       <div class="sched-ro-next" title="${nx ? schedEsc(nx.title) : ''}">${nx ? schedEsc(nx.title) : '모두 완료'}</div>
       <div class="sched-ro-when${hot ? ' hot' : ''}">
         ${nx ? schedFmt(nx.start) + (dd < 0 ? ' · 지남' : dd === 0 ? ' · 오늘' : ' · D-' + dd) : '—'}
@@ -4006,6 +4097,10 @@ function getScheduleGanttRange() {
     if (i.end && i.end > max) max = i.end;
   });
   if (scheduleDeliveryDate && scheduleDeliveryDate > max) max = scheduleDeliveryDate;
+  getScheduleProjects().forEach(p => {
+    const pDate = getProjectDeliveryDate(p.id);
+    if (pDate && pDate > max) max = pDate;
+  });
   
   const d0 = schedPd(min);
   const d1 = schedPd(max);
@@ -4200,17 +4295,35 @@ function renderScheduleGantt() {
     ov.appendChild(tl);
   }
   
-  if (scheduleDeliveryDate) {
-    const dlX = gx(scheduleDeliveryDate) + SCHED_DAY_W;
+  // Render project-aware dashed delivery lines
+  const visibleProjects = getScheduleProjects().filter(p => scheduleVisible[p.id] !== false);
+  const deliveryGroupMap = {};
+  visibleProjects.forEach(p => {
+    const dDate = getProjectDeliveryDate(p.id);
+    if (!deliveryGroupMap[dDate]) deliveryGroupMap[dDate] = [];
+    deliveryGroupMap[dDate].push(p.name);
+  });
+
+  Object.keys(deliveryGroupMap).forEach(dDate => {
+    const dlX = gx(dDate) + SCHED_DAY_W;
     if (dlX >= 0 && dlX <= TOTAL * SCHED_DAY_W) {
       const dl = document.createElement('div');
       dl.className = 'sched-deadline-line';
       dl.style.left = dlX + 'px';
-      const dd = schedPd(scheduleDeliveryDate);
-      dl.innerHTML = `<b>${dd.getMonth() + 1}.${dd.getDate()} 납품</b>`;
+      const dd = schedPd(dDate);
+      const projList = deliveryGroupMap[dDate];
+      let labelText = `${dd.getMonth() + 1}.${dd.getDate()} 납품`;
+      if (projList.length === 1) {
+        const shortName = projList[0].replace('삼우 50주년 ', '');
+        labelText = `[${shortName}] ${dd.getMonth() + 1}.${dd.getDate()} 납품`;
+      } else if (projList.length < visibleProjects.length) {
+        const shortNames = projList.map(n => n.replace('삼우 50주년 ', '')).join(', ');
+        labelText = `${dd.getMonth() + 1}.${dd.getDate()} 납품 (${shortNames})`;
+      }
+      dl.innerHTML = `<b>${labelText}</b>`;
       ov.appendChild(dl);
     }
-  }
+  });
   
   canvas.appendChild(ov);
   
@@ -4426,6 +4539,86 @@ async function executeDeleteScheduleItem() {
   renderSchedulePage();
   await save();
   showToast('🗑️ 일정이 삭제되었습니다');
+}
+
+// Project Specific Delivery Date Modal Handlers
+function openScheduleDeliveryModal() {
+  const container = document.getElementById('schedDeliveryModalList');
+  if (!container) return;
+  
+  const projects = getScheduleProjects();
+  container.innerHTML = '';
+  
+  const globalDate = scheduleDeliveryDate || '2026-10-28';
+  const gDiff = Math.round((schedPd(globalDate) - schedToday()) / 86400000);
+  const gDday = gDiff > 0 ? `D-${gDiff}` : gDiff === 0 ? 'D-Day' : `D+${Math.abs(gDiff)}`;
+  
+  const globalRow = document.createElement('div');
+  globalRow.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:var(--body-bg, #f8fafc); border-radius:8px; border:1px solid var(--border);';
+  globalRow.innerHTML = `
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span style="font-weight:700; font-size:13px; color:var(--text);">🌐 전체 기본 공통 납품일</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <input type="date" id="modalDeliveryDate_global" value="${globalDate}" style="padding:4px 8px; border-radius:6px; border:1px solid var(--border); font-size:12px; font-weight:600;">
+      <span style="font-size:11px; font-weight:700; color:var(--primary); min-width:44px;">${gDday}</span>
+    </div>
+  `;
+  container.appendChild(globalRow);
+  
+  projects.forEach(p => {
+    const pDate = getProjectDeliveryDate(p.id);
+    const hasCustom = !!projectDeliveryDates[p.id];
+    const diff = Math.round((schedPd(pDate) - schedToday()) / 86400000);
+    const ddayStr = diff > 0 ? `D-${diff}` : diff === 0 ? 'D-Day' : `D+${Math.abs(diff)}`;
+    
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:var(--card-bg, #fff); border-radius:8px; border:1px solid var(--border); gap:12px;';
+    row.innerHTML = `
+      <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:180px;">
+        <span style="width:10px; height:10px; border-radius:50%; background:${p.color}; flex-shrink:0;"></span>
+        <span style="font-weight:700; font-size:13px; color:var(--text);">${schedEsc(p.name)}</span>
+        ${hasCustom ? '<span class="badge" style="font-size:10px; padding:2px 6px; background:rgba(67,97,238,0.1); color:var(--primary);">개별 설정</span>' : ''}
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <input type="date" id="modalDeliveryDate_${p.id}" value="${pDate}" style="padding:4px 8px; border-radius:6px; border:1px solid var(--border); font-size:12px; font-weight:600;">
+        <span style="font-size:11px; font-weight:700; color:${diff <= 14 ? 'var(--danger)' : 'var(--primary)'}; min-width:44px;">${ddayStr}</span>
+        <button class="btn btn-sm" style="padding:2px 8px; font-size:11px; font-weight:600;" onclick="resetModalDeliveryDate('${p.id}')" title="공통 납품일로 리셋">↺ 초기화</button>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+  
+  openModal('schedDeliveryModal');
+}
+
+function resetModalDeliveryDate(projectId) {
+  const globalInput = document.getElementById('modalDeliveryDate_global');
+  const projInput = document.getElementById(`modalDeliveryDate_${projectId}`);
+  if (globalInput && projInput) {
+    projInput.value = globalInput.value;
+  }
+}
+
+async function saveScheduleDeliveryModal() {
+  const globalInput = document.getElementById('modalDeliveryDate_global');
+  if (globalInput && globalInput.value) {
+    scheduleDeliveryDate = globalInput.value;
+    try { localStorage.setItem('creative_cp_schedule_delivery', scheduleDeliveryDate); } catch(e) {}
+  }
+  
+  const projects = getScheduleProjects();
+  projects.forEach(p => {
+    const input = document.getElementById(`modalDeliveryDate_${p.id}`);
+    if (input && input.value) {
+      setProjectDeliveryDate(p.id, input.value);
+    }
+  });
+  
+  closeModal('schedDeliveryModal');
+  renderSchedulePage();
+  await save();
+  showToast('🎉 프로젝트별 기준 납품일이 저장되었습니다!');
 }
 
 init();
