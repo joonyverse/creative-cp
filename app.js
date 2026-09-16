@@ -4196,7 +4196,13 @@ function renderScheduleGantt() {
     head.className = 'sched-trk-head';
     const allTrack = getScheduleItems().filter(i => i.projectId === proj.id);
     const doneN = allTrack.filter(i => i.status === 'done').length;
-    head.innerHTML = `<span><span class="sched-trk-bar" style="background:${proj.color}"></span>${schedEsc(proj.name)} <em>${doneN}/${allTrack.length}</em></span>`;
+    const pDate = getProjectDeliveryDate(proj.id);
+    const pDiff = Math.round((schedPd(pDate) - schedToday()) / 86400000);
+    const pDdayStr = pDiff > 0 ? `D-${pDiff}` : pDiff === 0 ? 'D-Day' : `D+${Math.abs(pDiff)}`;
+    const hasCustom = !!projectDeliveryDates[proj.id];
+
+    head.innerHTML = `<span><span class="sched-trk-bar" style="background:${proj.color}"></span>${schedEsc(proj.name)} <em>${doneN}/${allTrack.length}</em></span>` +
+      `<span class="sched-track-delivery-badge" title="프로젝트 기준 납품일: ${pDate}">🎯 ${hasCustom ? '📌 ' : ''}${schedFmtShort(pDate)} (${pDdayStr})</span>`;
     wrap.appendChild(head);
     
     const lanes = document.createElement('div');
@@ -4261,13 +4267,24 @@ function renderScheduleGantt() {
       node.onclick = () => openScheduleModal(it.id);
       lanes.appendChild(node);
     });
+
+    // Render Track-Specific Delivery Line inside this project lane
+    const dlX = gx(pDate) + SCHED_DAY_W;
+    if (dlX >= 0 && dlX <= TOTAL * SCHED_DAY_W) {
+      const dl = document.createElement('div');
+      dl.className = 'sched-trk-deadline-line';
+      dl.style.left = dlX + 'px';
+      const dd = schedPd(pDate);
+      dl.innerHTML = `<b>🚩 ${dd.getMonth() + 1}.${dd.getDate()} 납품 (${pDdayStr})</b>`;
+      lanes.appendChild(dl);
+    }
     
     lanes.style.height = (packed.length * 22 + 8) + 'px';
     wrap.appendChild(lanes);
     canvas.appendChild(wrap);
   });
   
-  // Overlay: holidays + today line + delivery line
+  // Overlay: holidays + today line
   const ov = document.createElement('div');
   ov.className = 'sched-overlay';
   
@@ -4294,36 +4311,6 @@ function renderScheduleGantt() {
     tl.innerHTML = '<b>오늘</b>';
     ov.appendChild(tl);
   }
-  
-  // Render project-aware dashed delivery lines
-  const visibleProjects = getScheduleProjects().filter(p => scheduleVisible[p.id] !== false);
-  const deliveryGroupMap = {};
-  visibleProjects.forEach(p => {
-    const dDate = getProjectDeliveryDate(p.id);
-    if (!deliveryGroupMap[dDate]) deliveryGroupMap[dDate] = [];
-    deliveryGroupMap[dDate].push(p.name);
-  });
-
-  Object.keys(deliveryGroupMap).forEach(dDate => {
-    const dlX = gx(dDate) + SCHED_DAY_W;
-    if (dlX >= 0 && dlX <= TOTAL * SCHED_DAY_W) {
-      const dl = document.createElement('div');
-      dl.className = 'sched-deadline-line';
-      dl.style.left = dlX + 'px';
-      const dd = schedPd(dDate);
-      const projList = deliveryGroupMap[dDate];
-      let labelText = `${dd.getMonth() + 1}.${dd.getDate()} 납품`;
-      if (projList.length === 1) {
-        const shortName = projList[0].replace('삼우 50주년 ', '');
-        labelText = `[${shortName}] ${dd.getMonth() + 1}.${dd.getDate()} 납품`;
-      } else if (projList.length < visibleProjects.length) {
-        const shortNames = projList.map(n => n.replace('삼우 50주년 ', '')).join(', ');
-        labelText = `${dd.getMonth() + 1}.${dd.getDate()} 납품 (${shortNames})`;
-      }
-      dl.innerHTML = `<b>${labelText}</b>`;
-      ov.appendChild(dl);
-    }
-  });
   
   canvas.appendChild(ov);
   

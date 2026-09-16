@@ -1770,6 +1770,40 @@ textarea { resize: vertical; min-height: 60px; }
   white-space: nowrap;
 }
 
+/* Per-track deadline line styles */
+.sched-trk-deadline-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed #d90429;
+  z-index: 2;
+  pointer-events: none;
+}
+.sched-trk-deadline-line b {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  background: #d90429;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+.sched-track-delivery-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--danger, #d90429);
+  background: rgba(239, 68, 68, 0.08);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  margin-left: auto;
+}
+
 /* Schedule list view */
 .sched-list-group {
   background: white;
