@@ -3779,6 +3779,11 @@ let scheduleHideDone = false;
 let scheduleDeliveryDate = '';
 const SCHED_STATUS_NAMES = { done: '완료', doing: '진행 중', todo: '예정', risk: '확인 필요' };
 const SCHED_DAY_W = 12;
+const SCHED_HOLIDAYS = [
+  { s: '2026-09-24', e: '2026-09-27', n: '추석 연휴' },
+  { s: '2026-10-03', e: '2026-10-05', n: '개천절·대체' },
+  { s: '2026-10-09', e: '2026-10-09', n: '한글날' }
+];
 
 function schedUid() { return 's' + Math.random().toString(36).slice(2, 9); }
 function schedPd(s) { const p = String(s).split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
@@ -4163,9 +4168,23 @@ function renderScheduleGantt() {
     canvas.appendChild(wrap);
   });
   
-  // Overlay: today line + delivery line
+  // Overlay: holidays + today line + delivery line
   const ov = document.createElement('div');
   ov.className = 'sched-overlay';
+  
+  // Render Holiday vertical shading bands
+  SCHED_HOLIDAYS.forEach(h => {
+    const hStartX = gx(h.s);
+    const hEndX = gx(h.e) + SCHED_DAY_W;
+    if (hEndX >= 0 && hStartX <= TOTAL * SCHED_DAY_W) {
+      const hb = document.createElement('div');
+      hb.className = 'sched-holiday';
+      hb.style.left = Math.max(0, hStartX) + 'px';
+      hb.style.width = Math.max(SCHED_DAY_W, hEndX - Math.max(0, hStartX)) + 'px';
+      hb.innerHTML = `<b>${h.n}</b>`;
+      ov.appendChild(hb);
+    }
+  });
   
   const todayStr = schedIso(schedToday());
   const todayX = gx(todayStr);
