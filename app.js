@@ -3776,7 +3776,7 @@ async function init() {
 let scheduleView = 'gantt';
 let scheduleVisible = {};  // projectId -> true/false
 let scheduleHideDone = false;
-let scheduleDeliveryDate = '';
+let scheduleDeliveryDate = '2026-10-28';
 const SCHED_STATUS_NAMES = { done: '완료', doing: '진행 중', todo: '예정', risk: '확인 필요' };
 const SCHED_DAY_W = 12;
 const SCHED_HOLIDAYS = [
@@ -3862,9 +3862,13 @@ function renderScheduleDeliveryHeader() {
 function renderSchedulePage() {
   if (!data.schedules) data.schedules = [];
   
-  // Load delivery date from localStorage
-  if (!scheduleDeliveryDate) {
-    try { scheduleDeliveryDate = localStorage.getItem('creative_cp_schedule_delivery') || ''; } catch(e) {}
+  // Load delivery date from localStorage (default: 2026-10-28)
+  try {
+    const savedDelivery = localStorage.getItem('creative_cp_schedule_delivery');
+    if (savedDelivery) scheduleDeliveryDate = savedDelivery;
+    else if (!scheduleDeliveryDate) scheduleDeliveryDate = '2026-10-28';
+  } catch(e) {
+    if (!scheduleDeliveryDate) scheduleDeliveryDate = '2026-10-28';
   }
   const deliveryInput = document.getElementById('schedDeliveryDate');
   if (deliveryInput && scheduleDeliveryDate) deliveryInput.value = scheduleDeliveryDate;
